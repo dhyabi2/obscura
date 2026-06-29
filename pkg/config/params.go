@@ -246,11 +246,14 @@ var (
 // the values here are node-local policy knobs (NOT consensus parameters): different
 // nodes may use different settings without forking. All are env-overridable.
 var (
-	// AutoSwapLiquidity enables the auto-liquidity loop. DEFAULT false (audit #16):
-	// auto-selling freshly-mined OBX for XNO publishes a miner→XNO link on a public
-	// ledger, deanonymizing the miner — unacceptable as an on-by-default for a privacy
-	// coin. OPT IN explicitly with OBX_AUTO_LIQUIDITY=1 (a privacy warning is logged).
-	AutoSwapLiquidity = false
+	// AutoSwapLiquidity enables the auto-liquidity loop. DEFAULT true (maintainer choice):
+	// a mining node bootstraps OBX→XNO swap liquidity out-of-box, so the DEX has depth +
+	// price discovery without manual market-making. TRADE-OFF (audit #16): auto-selling
+	// freshly-mined OBX for XNO publishes a miner→XNO link on the public Nano ledger,
+	// which can deanonymize the miner — a privacy warning is logged whenever it runs.
+	// OPT OUT with --no-auto-liquidity or OBX_AUTO_LIQUIDITY=0. (Bounded: never offers
+	// more than AutoLiquidityMaxFraction of spendable, capped at AutoLiquidityMaxOffers.)
+	AutoSwapLiquidity = true
 
 	// AutoLiquiditySeedRateXNO is the SEED price used only when the order book has
 	// no existing OBX→XNO offer to anchor to: how many XNO a maker asks per 1 OBX
@@ -289,8 +292,8 @@ var AutoLiquidityDecimals = map[string]int{"OBX": 12, "XNO": 12}
 
 func init() {
 	if v := os.Getenv("OBX_AUTO_LIQUIDITY"); v != "" {
-		// OPT-IN: "1"/"true"/"yes"/"on" enable; anything else (incl. an explicit "0")
-		// leaves it disabled. Default is OFF for miner privacy (audit #16).
+		// "1"/"true"/"yes"/"on" force-enable; anything else (incl. "0"/"false") force-
+		// DISABLE. Default is now ON; set OBX_AUTO_LIQUIDITY=0 to opt out (miner privacy).
 		switch v {
 		case "1", "true", "yes", "on", "TRUE", "YES", "ON":
 			AutoSwapLiquidity = true

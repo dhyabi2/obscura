@@ -55,7 +55,7 @@ func main() {
 		// OFFERS from spendable rewards into the P2P order book (off-chain gossip, NOT
 		// consensus). OFF by default for miner privacy (audit #16); opt in with
 		// OBX_AUTO_LIQUIDITY=1. This flag force-disables it regardless of env/config.
-		noAutoLiquidity = flag.Bool("no-auto-liquidity", false, "force-disable auto-posting OBX→XNO swap offers from mining rewards (already OFF by default; opt in via OBX_AUTO_LIQUIDITY=1)")
+		noAutoLiquidity = flag.Bool("no-auto-liquidity", false, "force-disable auto-posting OBX→XNO swap offers from mining rewards (ON by default; this flag, or OBX_AUTO_LIQUIDITY=0, opts out for miner privacy)")
 
 		// Cross-chain swap backends. Obscura HARDCODES NO third-party RPC into the swap
 		// logic; the operator selects one. As a convenience, --nano-rpc accepts a built-in
@@ -300,7 +300,7 @@ func main() {
 			log.Printf("auto-liquidity ENABLED: auto-posting OBX→XNO offers from mining rewards (seed rate %.4g XNO/OBX, every %ds)",
 				config.AutoLiquiditySeedRateXNO, config.AutoLiquidityIntervalSec)
 			log.Printf("auto-liquidity PRIVACY WARNING: selling mined OBX for XNO publishes a miner→XNO " +
-				"link on the public Nano ledger, which can deanonymize your mining (opt-in via OBX_AUTO_LIQUIDITY=1).")
+				"link on the public Nano ledger, which can deanonymize your mining (opt out: --no-auto-liquidity or OBX_AUTO_LIQUIDITY=0).")
 			go autoLiquidityLoop(c, node, minerSeed)
 		}
 	}
