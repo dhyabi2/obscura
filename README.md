@@ -13,6 +13,109 @@ Obscura is a Monero-alternative privacy coin written in Go. Instead of hiding ea
 
 ---
 
+## Protocol at a glance
+
+The whole protocol on one page — a transaction's path (solid arrows) and the cross-links that make it interconnected (dotted):
+
+```mermaid
+flowchart TB
+
+subgraph WAL["WALLET · build and prove"]
+  direction LR
+  W1["Transparent<br/>Pedersen + Schnorr"]:::wal
+  W2["Confidential ZK<br/>hidden amounts"]:::wal
+  W3["Unlinkable<br/>recipient-secret nullifier"]:::wal
+  W4["zk-STARK anon spend<br/>transparent · no trusted setup"]:::wal
+  W5["Vault<br/>private staking"]:::wal
+  W6["Cross-chain swaps<br/>XNO scriptless · BTC HTLC (disabled)"]:::wal
+  W7["Post-quantum<br/>ML-KEM-768 stealth"]:::wal
+end
+
+subgraph MEM["MEMPOOL · admit"]
+  direction LR
+  M1["Parallel proof verify"]:::wal
+  M2["Value conservation"]:::wal
+  M3["Shared nullifier set"]:::wal
+  M4["Bounded · fee-priority"]:::wal
+end
+
+subgraph P2P["P2P MESH · censorship-resistant"]
+  direction LR
+  N1["Self-discovering<br/>PEX + addr-me"]:::net
+  N2["Eclipse-resistant<br/>/16 group caps"]:::net
+  N3["Tor · .onion<br/>Dandelion++"]:::net
+  N4["Seedless"]:::net
+end
+
+subgraph MIN["MINER · full node by protocol"]
+  direction LR
+  R1["Proof-of-Retrievability<br/>k challenges on retained span"]:::min
+  R2["Memory-hard PoW<br/>epoch seed · LWMA"]:::min
+  R3["Paced to block time"]:::min
+end
+
+subgraph VAL["VALIDATION · every node"]
+  direction LR
+  V1["PoW + difficulty + MTP"]:::min
+  V2["PoR vs stored headers"]:::min
+  V3["Per-tx proofs<br/>STARK · PQ"]:::min
+  V4["Conservation + nullifier"]:::min
+  V5["Header roots match"]:::min
+end
+
+subgraph ST["STATE · constant-size, committed"]
+  direction LR
+  S1[("Class-group accumulator<br/>all coins · constant-size")]:::sta
+  S2[("Nullifier set")]:::sta
+  S3[("Epoch-sharded<br/>Poseidon tree")]:::sta
+  S4[("PQ anonymity accumulator")]:::sta
+  S5[("Vaults · swaps · incentive pool")]:::sta
+end
+
+HDR["HEADER · Acc·Null·CM·PQ·PoR roots<br/>bound by PoW"]:::sta
+CH[("CANONICAL CHAIN")]:::sta
+PR["Pruning by design<br/>3-tier · snapshot sync · miners too"]:::sta
+XC[("Cross-chain order book<br/>OBX↔XNO (live) · OBX↔BTC (planned)")]:::net
+STOP(["✗ cannot mine"]):::stop
+
+WAL ==>|"signed tx + STARK proof"| MEM
+MEM ==>|"Dandelion++ gossip"| P2P
+P2P ==>|"select ≤ 1000 txs"| MIN
+MIN ==>|"mined block"| VAL
+VAL ==>|"apply · atomic · reorg-safe"| ST
+ST ==>|"5 roots + NumTxs"| HDR
+HDR ==> CH
+CH ==> PR
+
+S3 -.->|"recent CMRoot = spend anchor"| W2
+S3 -.-> W3
+S5 -.->|"confidential yield"| W5
+W6 <--> XC
+W7 -.-> S4
+CH -.->|"broadcast block"| P2P
+CH -.->|"fork-choice: most-work + hash tie-break + partition recovery"| CH
+PR -.->|"snapshot serves new nodes"| P2P
+R1 -.->|"can't prove retained span"| STOP
+
+classDef wal fill:#08313a,stroke:#00e6c3,color:#dffbf5;
+classDef net fill:#1e1640,stroke:#8b6cff,color:#ece7ff;
+classDef min fill:#3a1426,stroke:#ff7ad9,color:#ffe6f6;
+classDef sta fill:#3a2e0b,stroke:#ffc15e,color:#fff3dc;
+classDef stop fill:#2a0f12,stroke:#ff5a5a,color:#ffd9d9;
+```
+
+## Cross-chain atomic swap (OBX↔XNO)
+
+A scriptless 2-of-2 adaptor swap — no bridge, no custodian: the maker funds OBX first, the taker locks real XNO, and publishing the OBX claim signature reveals the taker's XNO secret, which lets the maker independently sweep the XNO. Both legs settle atomically off one shared secret.
+
+![OBX↔XNO scriptless atomic-swap sequence](docs/diagrams/obx_xno_swap_sequence.png)
+
+The same swap as a BPMN process flow:
+
+![OBX↔XNO atomic-swap BPMN process](docs/diagrams/obx_xno_swap_process.png)
+
+---
+
 ## Features
 
 - **Global anonymity set.** Every spend is hidden among *all* unspent outputs, not a ring of ~16 decoys. No decoy selection, so no decoy-selection leakage.
