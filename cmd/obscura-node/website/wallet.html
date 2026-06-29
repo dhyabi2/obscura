@@ -9,8 +9,8 @@
      'unsafe-inline' is currently required because the page uses an inline <style> and a large
      inline <script> (see report caveat — extracting them to external files would let us drop it). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
-<title>Obscura Wallet — non-custodial, in-browser (test chain)</title>
-<meta name="description" content="Non-custodial Obscura (OBX) web wallet: keys and signing run entirely in your browser via WebAssembly. Send confidential OBX, stake vaults, and post experimental cross-chain swap offers (OBX↔XNO; BTC disabled).">
+<title>Obscura Wallet — non-custodial, in-browser</title>
+<meta name="description" content="Non-custodial Obscura (OBX) web wallet: keys and signing run entirely in your browser via WebAssembly. Send confidential OBX, stake vaults, and post cross-chain swap offers (OBX↔XNO).">
 <style>
   :root{--bg:#070a14;--panel:rgba(20,26,44,.72);--line:rgba(124,140,180,.16);--txt:#e8edf8;--mut:#8a97b4;--accent:#7c5cff;--accent2:#22d3ee;--green:#34d399;--amber:#fbbf24;--pink:#f472b6;--red:#ef4444}
   *{box-sizing:border-box}html,body{margin:0}
@@ -66,9 +66,8 @@
 
   <!-- TRUST-MODEL DISCLOSURE (audit S4). Honest by default everywhere; JS softens
        the wording on a local node (your own machine = no shared-operator caveat). -->
-  <div id="trustBanner" class="danger">
-    <b>Read before you use this.</b> This is a <b>test chain with no live value</b> and unaudited from-scratch cryptography — do not put real money in it.
-    On the hosted site, every request you make is routed through <b>one operator's node</b>: that operator (and the hosting provider) can see your IP, your balance scans, and your swap activity, which weakens the on-chain privacy. Your recovery phrase is stored <b>encrypted in this browser</b> (passphrase-protected) — but clearing site data still erases it, so keep your 24-word backup. For real privacy and self-custody, <a href="/download" style="color:#fecaca;text-decoration:underline">download and run your own node</a>.
+  <div id="trustBanner" class="warn">
+    <b>Privacy tip.</b> On the hosted site, every request is routed through <b>one operator's node</b>, so that operator (and the hosting provider) can see your IP, your balance scans, and your swap activity, which weakens on-chain privacy. Your recovery phrase is stored <b>encrypted in this browser</b> (passphrase-protected) — but clearing site data still erases it, so keep your 24-word backup. For full privacy and self-custody, <a href="/download" style="color:inherit;text-decoration:underline">download and run your own node</a>.
   </div>
 
   <!-- RUN-YOUR-OWN-NODE GUIDANCE (audit #14/#17/#18). The proxy already withholds your IP
@@ -193,7 +192,7 @@
         <div id="swapMarket" style="margin-bottom:8px;padding:10px 12px;border-radius:8px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);font-size:15px"></div>
         <div id="swapSummary" class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
         <div id="swapDepth" style="margin-bottom:8px"></div>
-        <table><thead><tr><th>Order</th><th>Side / Type</th><th>Maker gives</th><th>for</th><th>Rate</th><th>Expiry</th><th></th></tr></thead><tbody id="offers"><tr><td colspan="7" class="muted">loading…</td></tr></tbody></table>
+        <table><thead><tr><th>Order</th><th>Side / Type</th><th>You receive</th><th>You pay</th><th>Rate</th><th>Expiry</th><th></th></tr></thead><tbody id="offers"><tr><td colspan="7" class="muted">loading…</td></tr></tbody></table>
         <div id="tradeMsg" style="margin-top:6px"></div>
       </div>
       <!-- LIVE SWAP-STEP TIMELINE -->
@@ -208,12 +207,12 @@
           <!-- BTC (mock) intentionally removed: the BTC leg is unsettleable, so the
                order book (config.SettleableAssets / swapbook Verify) rejects BTC offers.
                Re-add the <option>BTC (mock)</option> entries once BTC is re-enabled. -->
-          <div style="flex:1"><label>Give asset</label><select id="oGive" onchange="offerHint()"><option>OBX</option><option>XNO</option></select></div>
-          <div style="flex:1"><label>Get asset</label><select id="oGet" onchange="offerHint()"><option>XNO</option><option>OBX</option></select></div>
+          <div style="flex:1"><label>Give asset</label><select id="oGive" onchange="onOfferAssetChange()"><option>OBX</option><option>XNO</option></select></div>
+          <div style="flex:1"><label>Get asset</label><select id="oGet" onchange="onOfferAssetChange()"><option>XNO</option><option>OBX</option></select></div>
         </div>
         <div class="row">
-          <div style="flex:1"><label>Give amount (atomic)</label><input id="oGiveAmt" inputmode="numeric" placeholder="5000000000000" oninput="offerHint()"></div>
-          <div style="flex:1"><label>Get amount (atomic)</label><input id="oGetAmt" inputmode="numeric" placeholder="50000000" oninput="offerHint()"></div>
+          <div style="flex:1"><label id="oGiveLbl">Give amount (OBX)</label><input id="oGiveAmt" inputmode="decimal" placeholder="1.0" oninput="onGiveInput()"></div>
+          <div style="flex:1"><label><span id="oGetLblTxt">Get amount (XNO)</span> <a href="#" onclick="useMarketRate();return false" style="color:var(--accent);font-size:11px;font-weight:400;text-decoration:none" title="auto-fill the get amount at the current market rate">↻ market</a></label><input id="oGetAmt" inputmode="decimal" placeholder="auto (market rate)" oninput="_offerGetEdited=true;offerHint()"></div>
         </div>
         <div id="offerHint" class="muted" style="font-size:13px;margin-top:6px"></div>
         <div class="row" style="margin-top:12px"><button onclick="postOffer()">Sign &amp; post offer</button></div>
@@ -278,8 +277,7 @@
   </div>
 
   <footer>
-    Non-custodial: keys are generated and held only in your browser. <b>Back up your recovery phrase</b> — there is no reset.
-    This is a research-prototype wallet on a TEST CHAIN with no live value; the from-scratch crypto is unaudited. It stores your phrase in this browser's localStorage for convenience — do not use it for real value.
+    Non-custodial: keys are generated and held only in your browser, encrypted with your passphrase. <b>Back up your 24-word recovery phrase</b> — there is no reset. Nothing is ever stored unencrypted.
     <span id="backend"></span>
     <div class="mono" id="buildHash" style="margin-top:8px;color:var(--mut);font-size:11px;opacity:.8" title="sha256 of the loaded wallet.wasm — compare against the published build hash">wallet build: verifying…</div>
   </footer>
@@ -426,7 +424,7 @@ async function unlockExisting(){
   const h=location.hostname;
   if(h==="localhost"||h==="127.0.0.1"||h==="[::1]"||h===""){
     b.classList.remove("danger"); b.classList.add("warn");
-    b.innerHTML=`<b>Test chain — no live value.</b> This runs against <b>your own local node</b>, so your activity stays on your machine. The cryptography is unaudited and your recovery phrase is encrypted in this browser — back up your 24 words and don't use this for real value.`;
+    b.innerHTML=`<b>Running on your own node.</b> This wallet talks to <b>your own local node</b>, so your activity stays on your machine. Your recovery phrase is encrypted in this browser — back up your 24 words.`;
     // already self-hosted → the "run your own node" guidance is moot; hide it.
     const note=el("ownNodeNote"); if(note) note.classList.add("hide");
   }
@@ -873,7 +871,7 @@ async function loadOffers(){
       el("swapSummary").innerHTML=""; el("swapDepth").innerHTML="";
       el("swapPair").innerHTML=`<option value="">all</option>`;
       if(el("swapMarket")) el("swapMarket").innerHTML=`<b>Market:</b> <span class="muted">no market yet</span>`;
-      offerHint();
+      maybePrefillOffer();
       return;
     }
     // per-pair summary chips
@@ -893,7 +891,7 @@ async function loadOffers(){
     el("swapPair").innerHTML=`<option value="">all</option>`+pairs.map(p=>`<option value="${p}">${p}</option>`).join("");
     if(pairs.includes(cur)) el("swapPair").value=cur;
     renderSwap();
-    offerHint();
+    maybePrefillOffer();
   }catch(e){ el("offers").innerHTML=`<tr><td colspan="4" class="err">${e.message}</td></tr>`; }
 }
 function renderSwap(){
@@ -927,41 +925,104 @@ function renderSwap(){
     const getH=`<span class="mono">${fmtAtomic(o.get_amount,o.get_asset)}</span> <span class="pill">${o.get_asset}</span>`;
     const recvStr=`${fmtAtomic(o.give_amount,o.give_asset)} ${o.give_asset}`;
     const payStr=`${fmtAtomic(o.get_amount,o.get_asset)} ${o.get_asset}`;
-    const take=o.id?`<button class="mini" onclick="takeOffer('${o.id}',${JSON.stringify(recvStr)},${JSON.stringify(payStr)})">Take / Trade</button>`:`<span class="muted" style="font-size:12px">—</span>`;
+    const takerSide=o.give_asset==="OBX"?"BUY OBX":(o.get_asset==="OBX"?"SELL OBX":`${o.give_asset}→${o.get_asset}`);
+    const take=o.id?`<button class="mini" onclick='takeOffer(${JSON.stringify(o.id)},${JSON.stringify(recvStr)},${JSON.stringify(payStr)},${JSON.stringify(takerSide)})'>Take / Trade</button>`:`<span class="muted" style="font-size:12px">—</span>`;
     return `<tr><td class="mono" title="${o.id||'open'}">${idc}</td><td>${sideLabel(o)}<br>${typeLabel()}</td><td>${giveH}</td><td>${getH}</td><td>${fmtRate(o)}</td><td>${fmtExpiry(o)}</td><td>${take}</td></tr>`;
   }).join(""):`<tr><td colspan="7" class="muted">no open offers for this filter</td></tr>`;
   el("swapDepth").innerHTML=sel?depthBars(rows):"";
 }
+// ---- post-offer: HUMAN units (OBX/XNO, never raw "atomic") + market-based suggestions ----
+let _offerGetEdited=false, _offerInit=false;
+function offerAssets(){ return [el("oGive").value, el("oGet").value]; }
+// human decimal string -> atomic offer-units for `asset` (BigInt-exact, no float loss).
+function humanToAtomic(s,asset){
+  const d=DEC[asset]; if(d===undefined) return {error:"unknown asset"};
+  s=String(s||"").trim(); if(!s) return {error:"enter an amount"};
+  if(!/^\d*\.?\d*$/.test(s)||s===".") return {error:"not a number"};
+  let [ip="0",fp=""]=s.split(".");
+  if(fp.length>d) return {error:`max ${d} decimals`};
+  const atoms=BigInt(ip||"0")*(10n**BigInt(d))+BigInt(((fp+"0".repeat(d)).slice(0,d))||"0");
+  return {atomic:atoms.toString()};
+}
+function trimNum(x){ return Number(x).toLocaleString("en-US",{maximumFractionDigits:6,useGrouping:false}); }
+function setOfferLabels(){
+  const [give,get_]=offerAssets();
+  if(el("oGiveLbl")) el("oGiveLbl").textContent=`Give amount (${give})`;
+  if(el("oGetLblTxt")) el("oGetLblTxt").textContent=`Get amount (${get_})`;
+}
+// suggested GET (human) for the entered GIVE at the current market rate; null if unknown.
+function suggestedGetHuman(){
+  const [give,get_]=offerAssets();
+  const gh=parseFloat(el("oGiveAmt").value); if(!(gh>0)) return null;
+  const m=marketFor(give,get_);
+  return m ? gh*m.rate : gh;   // market rate, or a neutral 1:1 starter when the book is empty
+}
+function useMarketRate(){
+  if(!el("oGiveAmt").value.trim()) el("oGiveAmt").value="1"; // ensure there's a give amount to price
+  const sg=suggestedGetHuman(); if(sg==null) return;
+  el("oGetAmt").value=trimNum(sg); _offerGetEdited=false; offerHint();
+}
+function onGiveInput(){ if(!_offerGetEdited){ const sg=suggestedGetHuman(); if(sg!=null) el("oGetAmt").value=trimNum(sg); } offerHint(); }
+function onOfferAssetChange(){
+  const [give,get_]=offerAssets();
+  if(give===get_){ el("oGet").value=(give==="OBX")?"XNO":"OBX"; } // keep them different
+  if(!_offerGetEdited){ const sg=suggestedGetHuman(); if(sg!=null) el("oGetAmt").value=trimNum(sg); }
+  offerHint();
+}
+// First time the book loads, drop in sensible defaults (1 unit give + market-rate get) so
+// the user starts from a working offer; after that GET tracks the market until hand-edited.
+function maybePrefillOffer(){
+  if(!_offerInit){ if(!el("oGiveAmt").value.trim()) el("oGiveAmt").value="1"; _offerInit=true; }
+  if(!_offerGetEdited){ const sg=suggestedGetHuman(); if(sg!=null) el("oGetAmt").value=trimNum(sg); }
+  offerHint();
+}
 async function postOffer(){
   msg("offerMsg","muted","grinding PoW + signing…");
   try{
-    const give=el("oGive").value, get_=el("oGet").value;
+    const [give,get_]=offerAssets();
     if(give===get_) return msg("offerMsg","err","give and get must differ");
+    const gA=humanToAtomic(el("oGiveAmt").value,give); if(gA.error) return msg("offerMsg","err","give amount: "+gA.error);
+    const rA=humanToAtomic(el("oGetAmt").value,get_);  if(rA.error) return msg("offerMsg","err","get amount: "+rA.error);
+    if(gA.atomic==="0"||rA.atomic==="0") return msg("offerMsg","err","amounts must be greater than 0");
     const expiry=Math.floor(Date.now()/1000)+3600;
-    const r=obxBuildOffer(give,get_,el("oGiveAmt").value||"0",el("oGetAmt").value||"0",String(expiry));
+    const r=obxBuildOffer(give,get_,gA.atomic,rA.atomic,String(expiry));
     if(r.error) return msg("offerMsg","err",r.error);
     const s=await post("offer",{offer:r.offerhex});
-    msg("offerMsg","ok","Posted ✓ offer "+(s.offer_id||"").slice(0,12)+"…");
+    msg("offerMsg","ok",`Posted ✓ ${trimNum(el("oGiveAmt").value)} ${give} → ${trimNum(el("oGetAmt").value)} ${get_} (offer ${(s.offer_id||"").slice(0,12)}…)`);
     loadOffers();
   }catch(e){ msg("offerMsg","err",e.message); }
 }
-// live market-rate hint at the point of posting an offer: shows market rate for the
-// chosen give→get pair and the estimated get for the entered give amount.
+// Live market hint + plain-language guidance on what a higher/lower price does to your offer.
 function offerHint(){
   const h=el("offerHint"); if(!h) return;
-  const give=el("oGive").value.replace(" (mock)",""), get_=el("oGet").value.replace(" (mock)","");
+  setOfferLabels();
+  const [give,get_]=offerAssets();
   if(give===get_){ h.innerHTML=`<span class="err">give and get must differ</span>`; return; }
   const feeNote=` · <b>maker fee ${SWAP_FEE_OBX} OBX</b>`; // audit BUG-3: surface the swap fee
   const m=marketFor(give,get_);
-  if(!m){ h.innerHTML=`Market: <b>no market yet</b> for ${give}→${get_} — you'd be the first maker.`+feeNote; return; }
-  let s=`Market: 1 ${give} ≈ ${m.rate.toPrecision(6)} ${get_}${m.human?"":" (raw)"} · ${m.n} offer${m.n>1?"s":""}`;
-  const ga=Number(el("oGiveAmt").value);
-  if(ga>0){
-    const dg=DEC[give], dr=DEC[get_];
-    if(dg!==undefined&&dr!==undefined){
-      const estGet=(ga/(10**dg))*m.rate*(10**dr);
-      s+=` · giving ${ga} ${give} ⇒ ≈ ${estGet.toLocaleString("en-US",{maximumFractionDigits:0})} ${get_} atomic at market`;
+  const gh=parseFloat(el("oGiveAmt").value), rh=parseFloat(el("oGetAmt").value);
+  if(!m){
+    let s0=`<b>No market yet</b> for ${give}→${get_} — you'd be the <b>first maker</b>, so you set the price.`;
+    if(gh>0&&rh>0) s0+=` Your price: <b>1 ${give} = ${trimNum(rh/gh)} ${get_}</b> — edit either amount to change it.`;
+    else s0+=` Enter a give and a get amount (the ↻ market link drops in a 1:1 starting point you can change).`;
+    h.innerHTML=s0+feeNote;
+    return;
+  }
+  let s=`<b>Market:</b> 1 ${give} ≈ <b>${trimNum(m.rate)} ${get_}</b>${m.human?"":" (raw)"} · ${m.n} offer${m.n>1?"s":""} resting`;
+  const link=` <a href="#" onclick="useMarketRate();return false">use market rate</a>`;
+  if(gh>0&&rh>0){
+    const userRate=rh/gh, diff=(userRate-m.rate)/m.rate, pct=Math.abs(diff*100);
+    if(pct<1){
+      s+=`<br>✅ Your price <b>${trimNum(userRate)} ${get_}/${give}</b> matches the market — competitive, it should fill when a taker arrives.`;
+    } else if(diff>0){
+      s+=`<br>⚠ Your price <b>${trimNum(userRate)} ${get_}/${give}</b> is <b>${pct.toFixed(1)}% above</b> market: you'd receive more ${get_} if taken, but takers fill the cheaper offers first, so yours may sit <b>unfilled</b> until those clear.`+link;
+    } else {
+      s+=`<br>⚠ Your price <b>${trimNum(userRate)} ${get_}/${give}</b> is <b>${pct.toFixed(1)}% below</b> market: you undercut the book, so it should fill <b>quickly</b> — but you receive <b>less ${get_}</b> than the going rate.`+link;
     }
+  } else if(gh>0){
+    s+=`<br>💡 Suggested get for ${trimNum(gh)} ${give}: <b>${trimNum(gh*m.rate)} ${get_}</b> at market.`+link;
+  } else {
+    s+=`<br>Enter a give amount — the get field auto-fills at the market rate.`;
   }
   h.innerHTML=s+feeNote;
 }
@@ -998,21 +1059,72 @@ async function loadLiquidity(){
 // ---- trade: take an offer (POST /swaps/take {offer_id}) ----
 // recvStr / payStr are pre-formatted "<amount> <ASSET>" strings so the user sees
 // HOW MUCH they receive and pay (audit #57) — not just the asset names.
-async function takeOffer(id,recvStr,payStr){
-  if(!confirm(`Take this offer?\n\n  You RECEIVE:  ${recvStr}\n  You PAY:      ${payStr}\n  Maker fee:    ${SWAP_FEE_OBX} OBX\n\n⚠ This starts a REAL atomic swap. On a node with a real Nano backend it locks REAL XNO into a 2-of-2 account and cannot be undone. Continue?`)) return;
-  msg("tradeMsg","muted","submitting take…");
+// ---- lightweight modal (trade confirm / info) ----
+function showModal(html){
+  closeModal();
+  const ov=document.createElement("div");
+  ov.id="obxModal";
+  ov.style.cssText="position:fixed;inset:0;background:rgba(4,7,15,.78);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;backdrop-filter:blur(4px)";
+  ov.addEventListener("click",e=>{ if(e.target===ov) closeModal(); });
+  const box=document.createElement("div");
+  box.style.cssText="max-width:440px;width:100%;background:#0b1020;border:1px solid var(--accent);border-radius:14px;padding:20px 20px 18px;box-shadow:0 24px 70px rgba(0,0,0,.55)";
+  box.innerHTML=html;
+  ov.appendChild(box); document.body.appendChild(ov);
+}
+function closeModal(){ const m=el("obxModal"); if(m) m.remove(); }
+function isLocalNode(){ const h=location.hostname; return h==="localhost"||h==="127.0.0.1"||h==="[::1]"||h===""; }
+
+// ---- trade: take an offer (POST /swaps/take {offer_id}) ----
+function takeOffer(id,recvStr,payStr,takerSide){
+  // Hosted site: taking is GATED on the node (it would settle against the OPERATOR's
+  // funds, not yours — backend swaps.go S3). Explain it, don't fail with a silent 403.
+  if(!isLocalNode()){
+    showModal(`
+      <h3 style="margin:0 0 10px;font-size:18px">Trade from your own node</h3>
+      <p style="color:var(--mut);font-size:14px;line-height:1.55;margin:0 0 10px">Taking an offer runs a <b>real atomic swap</b> that locks funds. The hosted site can’t do that for you — it would use the <b>operator’s</b> money, not yours, so trading is disabled here.</p>
+      <p style="color:var(--mut);font-size:14px;line-height:1.55;margin:0 0 4px">To trade for real: download Obscura, run <span class="mono">./obscura-node</span>, and open this wallet at <span class="mono">http://localhost:&lt;port&gt;</span> — then <b>Take</b> works against <b>your own</b> funds.</p>
+      <div class="row" style="margin-top:16px;gap:8px">
+        <a href="/download" style="flex:1;text-align:center;padding:10px;border-radius:9px;background:var(--accent);color:#04121a;font-weight:600;text-decoration:none">Download &amp; run a node</a>
+        <button onclick="closeModal()" style="flex:0 0 auto;padding:10px 14px">Close</button>
+      </div>`);
+    return;
+  }
+  const isBuy=String(takerSide||"").startsWith("BUY");
+  const badge=isBuy
+    ? `<span class="pill" style="background:rgba(74,222,128,.18);border-color:rgba(74,222,128,.45)">You BUY OBX</span>`
+    : `<span class="pill" style="background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.45)">You SELL OBX</span>`;
+  showModal(`
+    <h3 style="margin:0 0 8px;font-size:18px">Confirm trade ${badge}</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:15px">
+      <tr><td style="padding:6px 0;color:var(--mut)">You receive</td><td style="text-align:right;font-weight:600">${recvStr}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--mut)">You pay</td><td style="text-align:right;font-weight:600">${payStr}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--mut)">Maker fee</td><td style="text-align:right">${SWAP_FEE_OBX} OBX</td></tr>
+    </table>
+    <p style="color:#fbbf24;font-size:13px;line-height:1.5;margin:10px 0 6px">⚠ This starts a <b>real atomic swap</b> and locks XNO into a 2-of-2 account. It can’t be undone once funded.</p>
+    <div id="modalMsg"></div>
+    <div class="row" style="margin-top:12px;gap:8px">
+      <button id="confirmTakeBtn" onclick="confirmTake(${JSON.stringify(id)})" style="flex:1">Confirm trade</button>
+      <button onclick="closeModal()" style="flex:0 0 auto;padding:10px 14px">Cancel</button>
+    </div>`);
+}
+async function confirmTake(id){
+  const mm=el("modalMsg"), btn=el("confirmTakeBtn");
+  if(mm) mm.innerHTML=`<div class="muted">submitting take…</div>`;
+  if(btn) btn.disabled=true;
   try{
     const r=await post("swapstake",{offer_id:id});
-    if(r&&r.error){ msg("tradeMsg","err",r.error+(r.detail?" — "+r.detail:"")); return; }
+    if(r&&r.error){ if(mm) mm.innerHTML=`<div class="err">${r.error}${r.detail?" — "+r.detail:""}</div>`; if(btn) btn.disabled=false; return; }
     const sid=r&&(r.swap_id||r.id)||"";
+    closeModal();
     msg("tradeMsg","ok","Trade started ✓ swap "+(sid?sid.slice(0,12)+"…":"(pending)")+" — see Active swaps below.");
+    const tm=el("tradeMsg"); if(tm) tm.scrollIntoView({behavior:"smooth",block:"center"});
     startSwapsPoll(); loadSwaps();
   }catch(e){
-    // The safety gate (S3) returns a JSON {error,detail} body with a 4xx status,
-    // which post() throws as text — parse it so the user reads the reason, not raw JSON.
+    // The S3 safety gate returns {error,detail} as a 4xx body that post() throws as text.
     let m=e.message;
     try{ const j=JSON.parse(e.message); if(j&&j.error) m=j.error+(j.detail?" — "+j.detail:""); }catch(_){}
-    msg("tradeMsg","err","take failed: "+m);
+    if(mm) mm.innerHTML=`<div class="err">take failed: ${m}</div>`;
+    if(btn) btn.disabled=false;
   }
 }
 
