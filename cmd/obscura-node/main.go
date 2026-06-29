@@ -59,9 +59,14 @@ func main() {
 
 		// Cross-chain swap backends. Obscura HARDCODES NO third-party RPC into the swap
 		// logic; the operator selects one. As a convenience, --nano-rpc accepts a built-in
-		// preset NAME from a working public-RPC pick-list (rainstorm|somenano|nanoto|public)
-		// OR a full custom URL. Empty keeps the order book working with XNO execution off.
-		nanoRPC     = flag.String("nano-rpc", os.Getenv("OBX_NANO_RPC"), "Nano RPC: preset name (rainstorm|somenano|nanoto|public) or a full URL; empty disables XNO execution")
+		// preset NAME from a working public-RPC pick-list OR a full custom URL. DEFAULT is
+		// "public" (rainstorm + a public read fallback chain); set off to disable XNO exec.
+		nanoRPC     = flag.String("nano-rpc", func() string {
+			if v := os.Getenv("OBX_NANO_RPC"); v != "" {
+				return v
+			}
+			return "public" // DEFAULT: rainstorm + the public fallback chain (operator can override or set 'off')
+		}(), "Nano RPC: preset (rainstorm|somenano|nanoto|natrium|public) or a full URL; DEFAULT 'public'; 'off' disables XNO execution")
 		nanoList    = flag.Bool("nano-rpc-list", false, "print the built-in public Nano RPC presets and exit")
 		nanoAuth    = flag.String("nano-rpc-auth", os.Getenv("OBX_NANO_RPC_AUTH"), "optional Authorization header value for the Nano RPC")
 		nanoWallet  = flag.String("nano-wallet", os.Getenv("OBX_NANO_WALLET"), "Nano node wallet id used as the funding source when locking XNO")
@@ -150,6 +155,10 @@ func main() {
 	// choice. Without a selection the order book still works and only XNO execution is off.
 	var realNano swapd.NanoClient // nil unless a real --nano-rpc client is selected
 	var realNanoRPC *swapd.NanoRPC // concrete client for the XNO proceeds wallet (balance/receivable/send)
+	// Explicit opt-out of the default public Nano RPC (privacy / air-gapped operators).
+	if s := strings.ToLower(strings.TrimSpace(*nanoRPC)); s == "off" || s == "none" || s == "disabled" || s == "false" {
+		*nanoRPC = ""
+	}
 	if *nanoRPC != "" {
 		cfg, isPreset := swapd.ResolveNanoSelector(*nanoRPC)
 		cfg.AuthHeader = *nanoAuth

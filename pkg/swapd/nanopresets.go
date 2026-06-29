@@ -36,6 +36,26 @@ var PublicNanoRPCs = []NanoRPCPreset{
 		CanWork: false, CanProcess: true,
 		Note: "Nano.to — reads + process; no work_generate (uses rainstorm for work)",
 	},
+	// Additional public endpoints (publicnodes.somenano.com), used mainly as READ
+	// fallbacks when the primary is down / rate-limiting; work still routes to rainstorm.
+	{
+		Name: "natrium", URL: "https://app.natrium.io/api", WorkURL: "https://rainstorm.city/api",
+		CanWork: false, CanProcess: true,
+		Note: "Natrium — reads + process; no work_generate (uses rainstorm for work)",
+	},
+}
+
+// nanoReadFallbacks returns every public read/process endpoint EXCEPT `primary`, in
+// preset order — the resilience chain a preset selection falls back through when its
+// primary node is unreachable. work_generate is unaffected (it always uses WorkURL).
+func nanoReadFallbacks(primary string) []string {
+	out := make([]string, 0, len(PublicNanoRPCs))
+	for _, p := range PublicNanoRPCs {
+		if p.URL != primary {
+			out = append(out, p.URL)
+		}
+	}
+	return out
 }
 
 // DefaultNanoPreset is the preset selected when an operator asks for a public RPC without
@@ -56,10 +76,14 @@ func ResolveNanoSelector(sel string) (cfg NanoRPCConfig, preset bool) {
 			if work == "" {
 				work = p.URL
 			}
-			return NanoRPCConfig{URL: p.URL, WorkURL: work}, true
+			// A preset selection rides the public fallback chain (every OTHER public
+			// endpoint) so a single node being down doesn't disable swaps.
+			return NanoRPCConfig{URL: p.URL, WorkURL: work, Fallbacks: nanoReadFallbacks(p.URL)}, true
 		}
 	}
-	// not a preset name → treat as a custom URL (operator-provided, zero hardcoding).
+	// not a preset name → treat as a custom URL (operator-provided, zero hardcoding). A
+	// custom node gets NO public fallbacks: an operator running their OWN node chose it
+	// deliberately (privacy), and silently falling back to public nodes would leak.
 	return NanoRPCConfig{URL: sel}, false
 }
 

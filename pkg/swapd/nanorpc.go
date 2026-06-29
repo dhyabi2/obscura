@@ -41,7 +41,12 @@ type NanoRPC struct {
 // NanoRPCConfig is everything a node maintainer must supply to enable the XNO swap leg.
 // All of it comes from the operator (flags / env / config) — never hardcoded.
 type NanoRPCConfig struct {
-	URL        string // REQUIRED: the maintainer's Nano node RPC endpoint, e.g. http://127.0.0.1:7076
+	URL string // REQUIRED: the maintainer's Nano node RPC endpoint, e.g. http://127.0.0.1:7076
+	// Fallbacks are additional read/process RPC endpoints tried IN ORDER when URL is
+	// unreachable (transport error / non-2xx) — resilience when the primary public node
+	// is down or rate-limiting. NOT used for work_generate (only WorkURL does work). A
+	// Nano {"error":...} envelope from the primary is a real answer and is NOT retried.
+	Fallbacks  []string
 	AuthHeader string // optional: value for an Authorization header (hosted nodes)
 	WalletID   string // optional: node wallet id used as the funding source for Lock (send)
 	Source     string // optional: funding account (nano_...) inside WalletID for Lock
@@ -146,15 +151,27 @@ func (n *NanoRPC) Version() (string, error) {
 // Nano RPCs (incl. rainstorm/nano.to) hit under load — the reference XNO template does the
 // same. A Nano {"error":...} envelope is a real answer, not transient, so it is not retried.
 func (n *NanoRPC) call(url string, req map[string]any, out any) error {
+	// Endpoint list: the requested url first, then the configured fallbacks — but only
+	// for the PRIMARY read/process endpoint (work_generate is sent to WorkURL and has no
+	// read fallback). Each endpoint gets up to 3 attempts; a dead/erroring endpoint
+	// (transport error or non-2xx) advances to the next fallback, while a Nano
+	// {"error":...} envelope is a real answer and returns immediately.
+	urls := []string{url}
+	if url == n.cfg.URL {
+		urls = append(urls, n.cfg.Fallbacks...)
+	}
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		lastErr = n.callOnce(url, req, out)
-		if lastErr == nil {
-			return nil
+	for _, u := range urls {
+		for attempt := 0; attempt < 3; attempt++ {
+			lastErr = n.callOnce(u, req, out)
+			if lastErr == nil {
+				return nil
+			}
+			if strings.Contains(lastErr.Error(), "nano rpc error:") {
+				return lastErr // node answered with an error envelope — not a dead node
+			}
 		}
-		if strings.Contains(lastErr.Error(), "nano rpc error:") {
-			return lastErr // node answered with an error envelope — not transient
-		}
+		// this endpoint is unreachable/5xx at the transport level — fall back to the next
 	}
 	return lastErr
 }
