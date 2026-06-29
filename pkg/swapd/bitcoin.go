@@ -3,8 +3,6 @@ package swapd
 import (
 	"crypto/sha256"
 	"errors"
-	"fmt"
-	"sync"
 )
 
 // BitcoinClient is the Bitcoin-side capability a BTC↔OBX atomic swap needs. The
@@ -15,7 +13,7 @@ import (
 // consensus is unchanged. See docs/INVENTION_CROSSCHAIN_SWAPS.md.
 //
 // A production build implements this against bitcoind/Electrum using the P2WSH
-// script from BtcHTLCScript; tests use MockBitcoin, which enforces the same rules.
+// script from BtcHTLCScript. No mock backend ships; BTC is gated OFF in config.SettleableAssets until a real backend lands.
 type BitcoinClient interface {
 	// FundHTLC locks `amountSat` into an HTLC with hashlock `hash` (= SHA256(t)),
 	// redeemable by `redeemPub` (with the preimage) or refundable by `refundPub`
@@ -124,121 +122,3 @@ func HashPreimage(preimage []byte) []byte {
 	h := sha256.Sum256(preimage)
 	return h[:]
 }
-
-// MockBitcoin is an in-memory Bitcoin stand-in for tests. It enforces the real
-// HTLC rules: hashlock (SHA256), CLTV timelock (via a settable mock block height),
-// party authorization (redeem/refund signer must match the designated pubkey), and
-// single-spend.
-type MockBitcoin struct {
-	mu     sync.Mutex
-	seq    int
-	height uint32
-	locks  map[string]*btcLock
-	bal    map[string]uint64
-	preimg map[string][]byte
-}
-
-type btcLock struct {
-	amount    uint64
-	hash      []byte
-	redeemPub []byte
-	refundPub []byte
-	locktime  uint32
-	spent     bool
-}
-
-// NewMockBitcoin creates an empty mock Bitcoin ledger at block height 0.
-func NewMockBitcoin() *MockBitcoin {
-	return &MockBitcoin{locks: make(map[string]*btcLock), bal: make(map[string]uint64), preimg: make(map[string][]byte)}
-}
-
-// SetHeight advances the mock chain tip (to exercise CLTV refund timing).
-func (m *MockBitcoin) SetHeight(h uint32) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.height = h
-}
-
-func (m *MockBitcoin) FundHTLC(amountSat uint64, hash, redeemPub, refundPub []byte, locktime uint32) (string, error) {
-	if len(hash) != 32 || len(redeemPub) == 0 || len(refundPub) == 0 {
-		return "", errors.New("swapd: bad htlc params")
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.seq++
-	id := fmt.Sprintf("btchtlc-%d", m.seq)
-	m.locks[id] = &btcLock{
-		amount: amountSat, hash: append([]byte(nil), hash...),
-		redeemPub: append([]byte(nil), redeemPub...), refundPub: append([]byte(nil), refundPub...),
-		locktime: locktime,
-	}
-	return id, nil
-}
-
-func (m *MockBitcoin) Confirmed(lockID string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	_, ok := m.locks[lockID]
-	return ok
-}
-
-func (m *MockBitcoin) Redeem(lockID string, preimage, redeemPub []byte, dest string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	l, ok := m.locks[lockID]
-	if !ok {
-		return errors.New("swapd: unknown htlc")
-	}
-	if l.spent {
-		return errors.New("swapd: htlc already spent")
-	}
-	// hashlock: SHA256(preimage) must equal the committed hash
-	got := sha256.Sum256(preimage)
-	if string(got[:]) != string(l.hash) {
-		return errors.New("swapd: wrong preimage")
-	}
-	// authorization: only the designated redeemer can take the hashlock path
-	if string(redeemPub) != string(l.redeemPub) {
-		return errors.New("swapd: not the redeemer")
-	}
-	l.spent = true
-	m.bal[dest] += l.amount
-	m.preimg[lockID] = append([]byte(nil), preimage...)
-	return nil
-}
-
-func (m *MockBitcoin) Refund(lockID string, refundPub []byte, dest string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	l, ok := m.locks[lockID]
-	if !ok {
-		return errors.New("swapd: unknown htlc")
-	}
-	if l.spent {
-		return errors.New("swapd: htlc already spent")
-	}
-	if m.height < l.locktime {
-		return errors.New("swapd: refund before locktime")
-	}
-	if string(refundPub) != string(l.refundPub) {
-		return errors.New("swapd: not the refunder")
-	}
-	l.spent = true
-	m.bal[dest] += l.amount
-	return nil
-}
-
-func (m *MockBitcoin) RevealedPreimage(lockID string) ([]byte, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	p, ok := m.preimg[lockID]
-	return p, ok
-}
-
-func (m *MockBitcoin) Balance(dest string) uint64 {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.bal[dest]
-}
-
-var _ BitcoinClient = (*MockBitcoin)(nil)
