@@ -5,13 +5,20 @@ Canonical (KAT-verified) RandomX PoW. Built from this repository.
 
 ## Downloads
 
-Hosted on the site: <https://obscura-blush.vercel.app/download>
+Download the binaries from the [**GitHub release v1.0.0**](https://github.com/dhyabi2/obscura/releases/tag/v1.0.0) (mirrored at <https://obscura-blush.vercel.app/download>).
+
+**Linux — one command (download + run a node + miner that joins mainnet):**
+
+```sh
+curl -fL https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz | tar xz \
+  && ./Obscura-linux-amd64/obscura-node --mine --seeds 167.172.56.34:18080
+```
 
 | Platform | File |
 | --- | --- |
-| macOS (Apple Silicon) | `Obscura-darwin-arm64.zip` |
-| macOS (Intel) | `Obscura-darwin-amd64.zip` |
-| Linux (x86-64) | `Obscura-linux-amd64.tar.gz` |
+| macOS (Apple Silicon) | [`Obscura-darwin-arm64.zip`](https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-darwin-arm64.zip) |
+| macOS (Intel) | [`Obscura-darwin-amd64.zip`](https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-darwin-amd64.zip) |
+| Linux (x86-64) | [`Obscura-linux-amd64.tar.gz`](https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz) |
 | Linux (ARM64) | `Obscura-linux-arm64.tar.gz` |
 | Windows (x86-64) | `Obscura-windows-amd64.zip` |
 | Windows (ARM64) | `Obscura-windows-arm64.zip` |
