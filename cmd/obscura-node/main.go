@@ -324,6 +324,33 @@ func main() {
 func mineLoop(c *chain.Chain, mp *mempool.Mempool, node *p2p.Node, dest commit.StealthAddress, refTag []byte) {
 	target := time.Duration(config.TargetBlockTime) * time.Second
 	var prevStart time.Time
+
+	// Mining progress reporter: RandomX solves can be minutes apart, so without this the
+	// console is silent between blocks ("connected, then nothing"). Every 20s it shows
+	// the live hashrate, the current height/difficulty, peer count, and how much THIS
+	// node has mined + earned so far.
+	var minedN atomic.Int64
+	var minedReward atomic.Uint64 // total OBX (atomic units) this node has minted
+	var lastBlockNS atomic.Int64  // unix-nano of the last solve (0 = none yet)
+	go func() {
+		t := time.NewTicker(20 * time.Second)
+		defer t.Stop()
+		prevH, prevT := miner.HashCount.Load(), time.Now()
+		for range t.C {
+			now := time.Now()
+			h := miner.HashCount.Load()
+			rate := float64(h-prevH) / now.Sub(prevT).Seconds()
+			prevH, prevT = h, now
+			last := "no block yet"
+			if lb := lastBlockNS.Load(); lb > 0 {
+				last = time.Since(time.Unix(0, lb)).Truncate(time.Second).String() + " ago"
+			}
+			log.Printf("⏳ mining @ height %d | diff=%d | %s | peers=%d | you mined %d block(s) = %s %s | last solve: %s",
+				c.Height(), c.ExpectedDifficulty(), fmtHashrate(rate), node.PeerCount(),
+				minedN.Load(), config.FormatAmount(uint64(minedReward.Load())), config.Ticker, last)
+		}
+	}()
+
 	for {
 		// PACE block production to the target interval. In production this is a no-op:
 		// PoW retargeting already makes a solve take ~TargetBlockTime, so the elapsed
@@ -392,10 +419,26 @@ func mineLoop(c *chain.Chain, mp *mempool.Mempool, node *p2p.Node, dest commit.S
 		// block production (per-peer write locks are shared with tx relay, which
 		// can pile up under high load). Peers also receive blocks via normal sync.
 		go node.BroadcastBlock(tmpl)
-		log.Printf("⛏  block %d | diff=%d | txs=%d | coinbase=%s %s | supply=%s %s | peers=%d",
+		minedN.Add(1)
+		minedReward.Add(minted)
+		lastBlockNS.Store(time.Now().UnixNano())
+		log.Printf("⛏  MINED block %d | diff=%d | txs=%d | reward=%s %s | supply=%s %s | peers=%d | YOU: %d block(s) = %s %s",
 			tmpl.Header.Height, tmpl.Header.Difficulty, len(tmpl.Txs),
 			config.FormatAmount(minted), config.Ticker,
-			config.FormatAmount(c.Emitted()), config.Ticker, node.PeerCount())
+			config.FormatAmount(c.Emitted()), config.Ticker, node.PeerCount(),
+			minedN.Load(), config.FormatAmount(uint64(minedReward.Load())), config.Ticker)
+	}
+}
+
+// fmtHashrate renders a PoW hashrate (hashes/sec) compactly for the miner progress line.
+func fmtHashrate(hps float64) string {
+	switch {
+	case hps >= 1e6:
+		return fmt.Sprintf("~%.2f MH/s", hps/1e6)
+	case hps >= 1e3:
+		return fmt.Sprintf("~%.2f kH/s", hps/1e3)
+	default:
+		return fmt.Sprintf("~%.0f H/s", hps)
 	}
 }
 

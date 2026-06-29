@@ -3,11 +3,17 @@ package miner
 
 import (
 	"context"
+	"sync/atomic"
 
 	"obscura/pkg/block"
 	"obscura/pkg/config"
 	"obscura/pkg/pow"
 )
+
+// HashCount is the running total of PoW hashes this process's miner has attempted.
+// It is read by the node's mining-progress reporter to show a live hashrate, so a
+// miner sees it is working between (slow) block solves. One miner = one writer.
+var HashCount atomic.Uint64
 
 // Mine grinds the nonce under the epoch-0 PoW seed (correct for early blocks;
 // callers on deep chains should use MineSeed with the per-epoch seed).
@@ -28,6 +34,7 @@ func MineSeed(ctx context.Context, b *block.Block, seed []byte, startNonce uint6
 		default:
 		}
 		b.Header.Nonce = nonce
+		HashCount.Add(1)
 		if pow.Meets(b.Header.PoWHashSeed(seed), diff) {
 			return true
 		}
