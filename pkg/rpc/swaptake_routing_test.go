@@ -34,10 +34,10 @@ type routeOffers struct {
 	released bool
 }
 
-func (r *routeOffers) Offers() []*swapbook.Offer { return []*swapbook.Offer{r.offer} }
-func (r *routeOffers) PostOffer(*swapbook.Offer) error { return nil }
+func (r *routeOffers) Offers() []*swapbook.Offer                       { return []*swapbook.Offer{r.offer} }
+func (r *routeOffers) PostOffer(*swapbook.Offer) error                 { return nil }
 func (r *routeOffers) Liquidity() ([]swapbook.PairLiquidity, int, int) { return nil, 0, 0 }
-func (r *routeOffers) Cancel([32]byte, []byte) error { return nil }
+func (r *routeOffers) Cancel([32]byte, []byte) error                   { return nil }
 func (r *routeOffers) Quote(string, string, uint64) (uint64, uint64, float64, int, bool) {
 	return 0, 0, 0, 0, false
 }
@@ -54,12 +54,12 @@ func (r *routeOffers) Reserve(give, get string, size uint64, _ swapbook.ReserveO
 func (r *routeOffers) CommitTrade([]swapbook.Reservation, string, string, string, string) swapbook.Trade {
 	return swapbook.Trade{}
 }
-func (r *routeOffers) ReleaseReservation([]swapbook.Reservation) { r.released = true }
-func (r *routeOffers) Trades(string, int) []swapbook.Trade        { return nil }
-func (r *routeOffers) LastPrice(string) (string, bool)            { return "", false }
+func (r *routeOffers) ReleaseReservation([]swapbook.Reservation)    { r.released = true }
+func (r *routeOffers) Trades(string, int) []swapbook.Trade          { return nil }
+func (r *routeOffers) LastPrice(string) (string, bool)              { return "", false }
 func (r *routeOffers) Candles(string, int64, int) []swapbook.Candle { return nil }
-func (r *routeOffers) Stats24h(string) swapbook.Stats24h          { return swapbook.Stats24h{} }
-func (r *routeOffers) MakerOffers([]byte) []*swapbook.Offer       { return nil }
+func (r *routeOffers) Stats24h(string) swapbook.Stats24h            { return swapbook.Stats24h{} }
+func (r *routeOffers) MakerOffers([]byte) []*swapbook.Offer         { return nil }
 func (r *routeOffers) OfferFill([32]byte) (swapbook.FillState, bool) {
 	return swapbook.FillState{}, false
 }
@@ -72,8 +72,10 @@ type routePeers struct {
 	peer     string
 }
 
-func (p routePeers) PeerCount() int      { return len(p.addrs) }
-func (p routePeers) PeerAddrs() []string { return p.addrs }
+func (p routePeers) PeerCount() int                    { return len(p.addrs) }
+func (p routePeers) PeerAddrs() []string               { return p.addrs }
+func (p routePeers) PeerVersionCounts() map[string]int { return map[string]int{"test": 1} }
+func (p routePeers) KnownAddrCount() int               { return len(p.addrs) }
 func (p routePeers) PeerForMaker(maker []byte) (string, bool) {
 	if p.makerKey != "" && hex.EncodeToString(maker) == p.makerKey {
 		return p.peer, true

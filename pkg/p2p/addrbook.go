@@ -23,6 +23,14 @@ type AddrBook struct {
 	path   string
 }
 
+// Size returns the number of distinct known addresses (the PEX view of network
+// breadth). Used by the explorer's node-count widget.
+func (ab *AddrBook) Size() int {
+	ab.mu.Lock()
+	defer ab.mu.Unlock()
+	return len(ab.addrs)
+}
+
 // ipGroup returns the network group an address belongs to (/16 for IPv4, /32 for
 // IPv6), so the book can bound how many addresses any single network contributes —
 // the core defense against an attacker who floods the book with one IP range to

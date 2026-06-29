@@ -43,6 +43,11 @@ type ExplorerSummary struct {
 	Mempool         int    `json:"mempool"`
 	AccSize         uint64 `json:"anonymity_set"`
 	PoWBackend      string `json:"pow_backend"`
+	// network: nodes this node can see (its connected peers + PEX-known addresses) and
+	// the software-version distribution across them + self. Counts only, never addresses.
+	ConnectedPeers int            `json:"connected_peers"`
+	KnownNodes     int            `json:"known_nodes"`
+	VersionCounts  map[string]int `json:"version_counts"`
 	// staking-vault stats (the supply-sink engagement gauge)
 	TVL       string `json:"tvl_obx"`
 	TVLAtomic uint64 `json:"tvl_atomic"`
@@ -82,6 +87,11 @@ func (s *Server) handleExplorerSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.mp != nil {
 		resp.Mempool = s.mp.Size()
+	}
+	if s.peers != nil {
+		resp.ConnectedPeers = s.peers.PeerCount()
+		resp.KnownNodes = s.peers.KnownAddrCount()
+		resp.VersionCounts = s.peers.PeerVersionCounts()
 	}
 	resp.Prices = bestPrices(s)
 	n := 20

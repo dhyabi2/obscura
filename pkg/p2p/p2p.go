@@ -67,6 +67,9 @@ const (
 // protocol / safety limits
 const (
 	protocolVersion = 2 // v2: hello carries advertised + peer-observed address (self-discovery)
+	// SoftwareVersion is this node's release version, advertised in the hello trailer so the
+	// network can report a version distribution (how many nodes run each build). Bump on release.
+	SoftwareVersion = "1.0.0"
 	maxPeers        = 32
 	maxInboundPerIP = 3
 
@@ -75,14 +78,14 @@ const (
 	// trips), could otherwise fill the inbound table. Cap inbound CONNECTIONS per /16
 	// group, and RESERVE outbound slots so an inbound flood can never starve the
 	// node's own outbound dialling (the only links an attacker cannot pre-position).
-	maxInboundPerGroup = 4               // max concurrent inbound conns from one /16
-	reservedOutbound   = 8               // inbound is capped below maxPeers by this many
+	maxInboundPerGroup = 4                           // max concurrent inbound conns from one /16
+	reservedOutbound   = 8                           // inbound is capped below maxPeers by this many
 	maxInbound         = maxPeers - reservedOutbound // = 24; leaves 8 slots for outbound
-	targetOutbound     = 8               // outbound links the node actively maintains
-	maxMsgBytes     = config.MaxBlockBytes + 4096
-	readIdleTimeout = 120 * time.Second
-	writeTimeout    = 30 * time.Second
-	banThreshold    = 20 // misbehavior points before disconnect+ban
+	targetOutbound     = 8                           // outbound links the node actively maintains
+	maxMsgBytes        = config.MaxBlockBytes + 4096
+	readIdleTimeout    = 120 * time.Second
+	writeTimeout       = 30 * time.Second
+	banThreshold       = 20 // misbehavior points before disconnect+ban
 
 	// --- audit fix: persistent per-group ban score + per-peer rate limiting ---
 	// A per-connection score (peer.score) resets on reconnect, so an attacker could
@@ -112,12 +115,13 @@ var networkMagic = func() uint32 {
 }()
 
 type peer struct {
-	conn     net.Conn
-	wmu      sync.Mutex // serializes writes to conn (prevents framing corruption)
-	score    int        // HARD misbehavior (malformed/abuse) → persistent IP/group ban
-	softScore int       // SOFT, connection-local (fork/sync block-validation) → drop only, NO persistent ban
-	outbound bool
-	listen   string // peer's advertised listen address (for PEX)
+	conn      net.Conn
+	wmu       sync.Mutex // serializes writes to conn (prevents framing corruption)
+	score     int        // HARD misbehavior (malformed/abuse) → persistent IP/group ban
+	softScore int        // SOFT, connection-local (fork/sync block-validation) → drop only, NO persistent ban
+	outbound  bool
+	listen    string // peer's advertised listen address (for PEX)
+	version   string // peer's advertised software version (hello trailer; "" if un-upgraded)
 
 	// audit fix: per-peer inbound token bucket (rate limiting). Guarded by Node.mu.
 	tokens   float64 // current tokens; one consumed per inbound message
@@ -164,8 +168,8 @@ type Node struct {
 	// devnet/direct-peer topologies this targets (the maker is a directly-connected
 	// peer) the last hop IS the maker. A signed maker-contact field in the offer is
 	// the full fix (deferred). The explicit ?peer= override always takes precedence.
-	provMu     sync.Mutex
-	offerProv  map[string]string // hex(maker pubkey) -> source peer remote addr
+	provMu    sync.Mutex
+	offerProv map[string]string // hex(maker pubkey) -> source peer remote addr
 
 	// Dandelion++ tx-origin privacy
 	dandelion  bool
@@ -601,8 +605,41 @@ func (n *Node) helloPayload(observedPeer string) []byte {
 	binary.BigEndian.PutUint16(al[:], uint16(len(adv)))
 	b = append(b, al[:]...)
 	b = append(b, []byte(adv)...)
+	// Trailer (backward-compatible): obsLen(2) observed verLen(2) version.
+	// Old peers treat everything after `advertise` as `observed` (a harmless garbled
+	// self-hint); new peers length-split it and learn the peer's software version.
+	var ol [2]byte
+	binary.BigEndian.PutUint16(ol[:], uint16(len(observedPeer)))
+	b = append(b, ol[:]...)
 	b = append(b, []byte(observedPeer)...)
+	var vl [2]byte
+	binary.BigEndian.PutUint16(vl[:], uint16(len(SoftwareVersion)))
+	b = append(b, vl[:]...)
+	b = append(b, []byte(SoftwareVersion)...)
 	return b
+}
+
+// parseHelloTrailer reads the optional version trailer (obsLen(2) observed verLen(2)
+// version) appended after the advertise field. It falls back to treating the whole
+// remainder as the observed-self string (the original layout) when the trailer is
+// absent or malformed, so it interoperates with un-upgraded peers. version is "" when
+// unknown. The exact-fit check makes a false positive on an old observed string
+// effectively impossible.
+func parseHelloTrailer(rest []byte) (observed, version string) {
+	if len(rest) >= 2 {
+		ol := int(binary.BigEndian.Uint16(rest[0:2]))
+		if 2+ol <= len(rest) {
+			obs := rest[2 : 2+ol]
+			r2 := rest[2+ol:]
+			if len(r2) >= 2 {
+				vl := int(binary.BigEndian.Uint16(r2[0:2]))
+				if 2+vl == len(r2) { // exact fit ⇒ this really is the new trailer
+					return string(obs), string(r2[2 : 2+vl])
+				}
+			}
+		}
+	}
+	return string(rest), "" // old layout: observed = rest, version unknown
 }
 
 func (n *Node) checkHello(p *peer, payload []byte) bool {
@@ -621,7 +658,12 @@ func (n *Node) checkHello(p *peer, payload []byte) bool {
 		return false
 	}
 	advertise := string(payload[16 : 16+advLen])
-	observedSelf := string(payload[16+advLen:])
+	observedSelf, peerVer := parseHelloTrailer(payload[16+advLen:])
+	// Bound the peer-controlled version string (a hostile peer could advertise a huge
+	// or hostile value); the explorer additionally HTML-escapes it before display.
+	if l := len(peerVer); l > 0 && l <= 32 {
+		p.version = peerVer
+	}
 	// the peer's advertised dialable address → store it so PEX spreads REACHABLE peers.
 	if isRoutable(advertise) {
 		p.listen = advertise
@@ -1056,6 +1098,33 @@ func (n *Node) PeerAddrs() []string {
 		out = append(out, addr)
 	}
 	return out
+}
+
+// PeerVersionCounts returns a software-version histogram of the currently-connected
+// peers PLUS this node itself. Peers that did not advertise a version (un-upgraded)
+// are bucketed as "unknown". It returns aggregated counts only — never addresses — so
+// it leaks nothing a privacy coin shouldn't expose (consistent with the /peers redaction).
+func (n *Node) PeerVersionCounts() map[string]int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := map[string]int{SoftwareVersion: 1} // count ourselves
+	for _, p := range n.peers {
+		v := p.version
+		if v == "" {
+			v = "unknown"
+		}
+		out[v]++
+	}
+	return out
+}
+
+// KnownAddrCount returns how many distinct node addresses this node has learned via
+// PEX — a wider (still partial) proxy for network breadth than the connected-peer count.
+func (n *Node) KnownAddrCount() int {
+	if n.book == nil {
+		return 0
+	}
+	return n.book.Size()
 }
 
 // --- wire framing with magic + deadlines ---

@@ -26,7 +26,7 @@
   a{color:var(--accent2);text-decoration:none} a:hover{text-decoration:underline}
   .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 70px}
   header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
-  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  .logo{width:38px;height:38px;border-radius:11px;background:#0a0a0a;
         display:grid;place-items:center;font-weight:800;color:#070a14;font-size:20px;
         box-shadow:0 0 26px rgba(124,92,255,.5)}
   h1{font-size:21px;margin:0;letter-spacing:.2px}
@@ -201,7 +201,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo"><svg viewBox="0 0 32 32" style="width:22px;height:22px;display:block"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#0a0a16" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="2.1" fill="#1d6fff"/></svg></div>
+    <div class="logo"><svg viewBox="0 0 32 32" fill="none" style="width:22px;height:22px;display:block"><circle cx="16" cy="16" r="13" stroke="#fff" stroke-width="2.4"/><circle cx="16" cy="16" r="8.6" stroke="#fff" stroke-width="1.6"/><circle cx="16" cy="16" r="3" fill="#fff"/></svg></div>
     <h1>Obscura&nbsp;Live</h1>
     <span class="tag">OBX · live</span>
     <a href="/wallet" style="color:var(--accent2);font-size:13px;font-weight:600">Wallet &amp; Swap →</a>
@@ -400,6 +400,17 @@ function sparkline(vals,w=276,h=40){
 function statCard(k,v,sub,spark){
   return `<div class="card glass" data-k="${k}"><div class="k">${k}</div>
     <div class="v">${v}${sub?` <small>${sub}</small>`:""}</div>${spark?`<div class="spark">${spark}</div>`:""}</div>`;
+}
+
+// escapeHtml — version strings are PEER-CONTROLLED; never inject them raw.
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+// versionsValue renders the software-version histogram (counts only, no addresses).
+function versionsValue(vc){
+  const keys=vc?Object.keys(vc):[];
+  if(!keys.length) return "—";
+  // most-common first, then by name
+  keys.sort((a,b)=>(vc[b]-vc[a])||(a<b?-1:1));
+  return keys.map(v=>`${Number(vc[v]).toLocaleString()}× <small>${escapeHtml(v)}</small>`).join("&nbsp;&nbsp;");
 }
 
 // per-asset decimal places (atomic-unit scale) — keep in sync with the wallet.
@@ -905,6 +916,8 @@ async function refreshSummary(){
     statCard("Difficulty",Number(s.difficulty).toLocaleString()) +
     statCard("Network hashrate",fmtHashrate(hr)) +
     statCard("Mempool",s.mempool,"pending") +
+    (s.connected_peers!==undefined? statCard("Nodes seen",Number(s.connected_peers).toLocaleString(),(Number(s.known_nodes||0)).toLocaleString()+" known via PEX"):"") +
+    (s.version_counts? statCard("Node versions",versionsValue(s.version_counts),"this node's view"):"") +
     (s.tvl_obx!==undefined? statCard("Value locked",s.tvl_obx,(s.vaults||0)+" vaults"):"") +
     (liqStat? statCard("Total liquidity",liqStat.offers.toLocaleString(),"offer"+(liqStat.offers===1?"":"s")+(liqStat.makers!==null?(" · "+liqStat.makers+" maker"+(liqStat.makers===1?"":"s")):"")):"") +
     priceCards(s.prices);

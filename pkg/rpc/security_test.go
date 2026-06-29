@@ -13,9 +13,11 @@ import (
 // stubPeers implements PeerProvider with a fixed peer list for tests.
 type stubPeers struct{ addrs []string }
 
-func (s stubPeers) PeerCount() int                          { return len(s.addrs) }
-func (s stubPeers) PeerAddrs() []string                     { return s.addrs }
-func (s stubPeers) PeerForMaker([]byte) (string, bool)      { return "", false }
+func (s stubPeers) PeerCount() int                     { return len(s.addrs) }
+func (s stubPeers) PeerAddrs() []string                { return s.addrs }
+func (s stubPeers) PeerForMaker([]byte) (string, bool) { return "", false }
+func (s stubPeers) PeerVersionCounts() map[string]int  { return map[string]int{"test": 1} }
+func (s stubPeers) KnownAddrCount() int                { return len(s.addrs) }
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()

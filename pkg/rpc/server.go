@@ -89,6 +89,11 @@ type SwapCoordinator interface {
 type PeerProvider interface {
 	PeerCount() int
 	PeerAddrs() []string
+	// PeerVersionCounts returns a software-version histogram of connected peers + self
+	// (aggregated counts only, no addresses). KnownAddrCount is the PEX-learned address
+	// count — a wider proxy for network breadth.
+	PeerVersionCounts() map[string]int
+	KnownAddrCount() int
 	// PeerForMaker resolves the source peer that relayed a live offer from the given
 	// maker pubkey (the maker-pubkey -> peer directory), so /swaps/take can route the
 	// swap Init to the maker rather than guessing PeerAddrs()[0]. ok is false if no
@@ -192,9 +197,9 @@ func NewServer(c *chain.Chain, mp *mempool.Mempool, bcast func(*tx.Transaction))
 			"DEX. Leave it OFF on any node holding real funds until per-user funding is wired.")
 	}
 	return &Server{
-		chain:     c,
-		mp:        mp,
-		bcast:     bcast,
+		chain:       c,
+		mp:          mp,
+		bcast:       bcast,
 		authToken:   os.Getenv("OBX_RPC_TOKEN"),
 		publicSwaps: publicSwaps,
 		tmplCache:   make(map[string]cachedTemplate),
