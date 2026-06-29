@@ -1,0 +1,1019 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/Cellar/node/26.0.0/bin/node",
+      "/Users/mac/XMR_alternative/tests/e2e/node_modules/.bin/playwright",
+      "test",
+      "c_amounts_multitab.spec.js"
+    ],
+    "configFile": "/Users/mac/XMR_alternative/tests/e2e/playwright.config.js",
+    "rootDir": "/Users/mac/XMR_alternative/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/mac/XMR_alternative/tests/e2e/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/Users/mac/XMR_alternative/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.js/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "c_amounts_multitab.spec.js",
+      "file": "c_amounts_multitab.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "E. amount parsing / send validation — BigInt (37-44)",
+          "file": "c_amounts_multitab.spec.js",
+          "line": 37,
+          "column": 6,
+          "specs": [
+            {
+              "title": "UC37 amount \"1\" -> 1e12 atomic units",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 300,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:03.571Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-6d2061785f500efa74a0",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 38,
+              "column": 3
+            },
+            {
+              "title": "UC38 sub-micro \"0.000000000001\" -> 1 atom (not rounded to zero)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 244,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:04.078Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-94a34a4483ed482bbbfc",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "UC39 amount with >12 decimals is rejected (no silent truncation)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 247,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:04.347Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-e25647a832eef2b302c6",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 52,
+              "column": 3
+            },
+            {
+              "title": "UC40 large amount keeps full precision (no float53 collapse)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 256,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:04.610Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-5689aa403ee359944913",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 60,
+              "column": 3
+            },
+            {
+              "title": "UC41 zero / negative / non-numeric amount rejected with a clear message",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 242,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:04.886Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-1f88716c65377adaab5f",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 75,
+              "column": 3
+            },
+            {
+              "title": "UC42 send blocked when amount resolves to < 1 atom",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 256,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:05.144Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-dbcab5c6bbca27406901",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 98,
+              "column": 3
+            },
+            {
+              "title": "UC43 fee field uses the same BigInt parser",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 237,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:05.415Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-6b90b50bd1efc3d3d2b0",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 108,
+              "column": 3
+            },
+            {
+              "title": "UC44 send to a malformed address is rejected (message, not a thrown exception)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 615,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:05.665Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-c9c69e133e684008b018",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 119,
+              "column": 3
+            },
+            {
+              "title": "UC45 send with insufficient balance is rejected (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 146,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.303Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 146,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-d7e70e524f3c171ef553",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 146,
+              "column": 8
+            },
+            {
+              "title": "UC46 successful send returns a txid and shows Broadcast (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 149,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.303Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 149,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-dcce91f6cf8042742a4b",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 149,
+              "column": 8
+            },
+            {
+              "title": "UC47 broadcast failure releases the input reservation (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 152,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.303Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 152,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-895de8135115a49ebb0a",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 152,
+              "column": 8
+            },
+            {
+              "title": "UC48 reserved-then-released outputs are spendable again (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 155,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.304Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 155,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-ff74e1bcca86ab365253",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 155,
+              "column": 8
+            }
+          ]
+        },
+        {
+          "title": "F. balance display — BigInt formatting (49-54)",
+          "file": "c_amounts_multitab.spec.js",
+          "line": 160,
+          "column": 6,
+          "specs": [
+            {
+              "title": "UC49 balance formats from BigInt, not Number()/1e12 (no float drift)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 257,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.304Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-64fab1ef0e8c6b327e2e",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 161,
+              "column": 3
+            },
+            {
+              "title": "UC51 12-decimal fractional balance trims trailing zeros correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 235,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.574Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-339c3ad7cce6e8a55b37",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 173,
+              "column": 3
+            },
+            {
+              "title": "UC52 zero balance shows 0, not NaN/undefined",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 241,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:06.820Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-4797737742367885ebf1",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 185,
+              "column": 3
+            },
+            {
+              "title": "UC50 large balance (>9000 OBX) displays exactly (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 193,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:07.078Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 193,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-762758b47458e418c5de",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 193,
+              "column": 8
+            },
+            {
+              "title": "UC53 balance updates after sync to the funded height (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 196,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:07.078Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 196,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-6b31ae54f7ee91e07ebf",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 196,
+              "column": 8
+            },
+            {
+              "title": "UC54 coinbase-maturity-locked vs spendable balance distinguished (FUNDED)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                        "line": 199,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:07.078Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/mac/XMR_alternative/tests/e2e/c_amounts_multitab.spec.js",
+                            "line": 199,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-36db819ab9392977b912",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 199,
+              "column": 8
+            }
+          ]
+        },
+        {
+          "title": "H. multi-tab lock (61-65)",
+          "file": "c_amounts_multitab.spec.js",
+          "line": 204,
+          "column": 6,
+          "specs": [
+            {
+              "title": "UC61 a single tab becomes the active owner",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 242,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:07.078Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-b9f51f8d3171597abefa",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 205,
+              "column": 3
+            },
+            {
+              "title": "UC62 a second tab in the same context sees non-owner + Send disabled",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 926,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:07.340Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-9976156579e5abc74870",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 217,
+              "column": 3
+            },
+            {
+              "title": "UC63 closing the owner tab lets the other take over within the stale timeout",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7909,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:08.278Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-24aaf0d123c091d52658",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 241,
+              "column": 3
+            },
+            {
+              "title": "UC64 no false lockout on a single tab (heartbeat survives, stays owner)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5258,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:16.199Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-fdc41c8cdfdd64dace6b",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 266,
+              "column": 3
+            },
+            {
+              "title": "UC65 a storage/BroadcastChannel event re-evaluates ownership",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 454,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-27T22:06:21.466Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "68fed4ac85546bbcf015-0f49d2467bb4cd82884a",
+              "file": "c_amounts_multitab.spec.js",
+              "line": 279,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-27T22:06:02.895Z",
+    "duration": 19095.775,
+    "expected": 16,
+    "skipped": 7,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

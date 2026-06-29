@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="Obscura (OBX) local wallet & node/mining dashboard — runs fully offline." />
+  <title>Obscura (OBX) — Wallet &amp; Node Dashboard</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- No-JS fallback -->
+  <noscript>
+    <div class="noscript-banner" role="alert">
+      This dashboard needs JavaScript to display live wallet and node data.
+      Please enable JavaScript in your browser.
+    </div>
+  </noscript>
+
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="app-header" role="banner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">◈</span>
+      <div class="brand-text">
+        <h1 class="brand-title">Obscura</h1>
+        <span class="brand-ticker">OBX</span>
+      </div>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+      <button id="tab-node-btn" class="tab" role="tab" aria-selected="true" aria-controls="panel-node" tabindex="0">
+        Node &amp; Mining
+      </button>
+      <button id="tab-wallet-btn" class="tab" role="tab" aria-selected="false" aria-controls="panel-wallet" tabindex="-1">
+        Wallet
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <span id="conn-indicator" class="conn-indicator conn-unknown" role="status" aria-live="polite">
+        <span class="conn-dot" aria-hidden="true"></span>
+        <span class="conn-label">Connecting…</span>
+      </span>
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to light theme" aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true">☾</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" class="app-main" tabindex="-1">
+
+    <!-- ================= NODE / MINING ================= -->
+    <section id="panel-node" class="panel" role="tabpanel" aria-labelledby="tab-node-btn">
+      <div class="panel-head">
+        <h2 class="panel-title">Node &amp; Mining</h2>
+        <div class="panel-meta">
+          <span id="node-updated" class="updated" aria-live="polite">Last updated: never</span>
+          <button id="node-refresh" class="btn btn-ghost" type="button">
+            <span class="btn-label">Refresh</span>
+            <span class="spinner" aria-hidden="true" hidden></span>
+          </button>
+        </div>
+      </div>
+
+      <div id="node-offline-banner" class="banner banner-error" role="alert" hidden>
+        <strong>Node offline.</strong>
+        Can't reach the node RPC. Start the node with
+        <code>./bin/obscura-node</code> and it will reconnect automatically.
+      </div>
+
+      <div class="cards" id="node-cards">
+        <article class="card stat" aria-labelledby="stat-height-l">
+          <div class="stat-label" id="stat-height-l">Block height</div>
+          <div class="stat-value num" id="stat-height" aria-busy="true">—</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-diff-l">
+          <div class="stat-label" id="stat-diff-l">Difficulty</div>
+          <div class="stat-value num" id="stat-diff">—</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-supply-l">
+          <div class="stat-label" id="stat-supply-l">Supply emitted</div>
+          <div class="stat-value num" id="stat-supply">—</div>
+          <div class="stat-unit">OBX</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-pool-l">
+          <div class="stat-label" id="stat-pool-l">Incentive pool</div>
+          <div class="stat-value num" id="stat-pool">—</div>
+          <div class="stat-unit">OBX</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-anon-l">
+          <div class="stat-label" id="stat-anon-l">Anonymity set</div>
+          <div class="stat-value num" id="stat-anon">—</div>
+          <div class="stat-unit">outputs</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-mempool-l">
+          <div class="stat-label" id="stat-mempool-l">Mempool</div>
+          <div class="stat-value num" id="stat-mempool">—</div>
+          <div class="stat-unit">txs</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-backend-l">
+          <div class="stat-label" id="stat-backend-l">Accumulator backend</div>
+          <div class="stat-value" id="stat-backend">—</div>
+        </article>
+        <article class="card stat" aria-labelledby="stat-status-l">
+          <div class="stat-label" id="stat-status-l">Sync status</div>
+          <div class="stat-value" id="stat-status">—</div>
+        </article>
+      </div>
+
+      <div class="card chart-card">
+        <div class="card-head">
+          <h3 class="card-title">Height over time</h3>
+          <span class="card-sub" id="chart-sub">live sample</span>
+        </div>
+        <canvas id="height-chart" class="sparkline" width="600" height="120"
+                role="img" aria-label="Sparkline of block height over recent samples"></canvas>
+        <p id="chart-empty" class="empty-state">Collecting samples… the chart appears after a few refreshes.</p>
+      </div>
+
+      <div class="card table-card">
+        <div class="card-head">
+          <h3 class="card-title">Recent blocks</h3>
+          <span class="card-sub">latest first</span>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" aria-label="Recent blocks">
+            <thead>
+              <tr>
+                <th scope="col" class="num">Height</th>
+                <th scope="col">Size (hex bytes)</th>
+                <th scope="col">Block data</th>
+              </tr>
+            </thead>
+            <tbody id="blocks-body">
+              <tr class="empty-row"><td colspan="3" class="empty-state">No blocks loaded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= WALLET ================= -->
+    <section id="panel-wallet" class="panel" role="tabpanel" aria-labelledby="tab-wallet-btn" hidden>
+      <div class="panel-head">
+        <h2 class="panel-title">Wallet</h2>
+        <div class="panel-meta">
+          <span id="wallet-updated" class="updated" aria-live="polite">Last updated: never</span>
+          <button id="wallet-refresh" class="btn btn-ghost" type="button">
+            <span class="btn-label">Refresh</span>
+            <span class="spinner" aria-hidden="true" hidden></span>
+          </button>
+        </div>
+      </div>
+
+      <div id="wallet-missing-banner" class="banner banner-warn" role="alert" hidden>
+        <strong>No wallet found.</strong>
+        Create one with <code>./bin/obscura-wallet new</code>, then refresh.
+      </div>
+
+      <div class="wallet-grid">
+        <article class="card address-card">
+          <div class="card-head">
+            <h3 class="card-title">Receiving address</h3>
+          </div>
+          <div class="address-row">
+            <code id="wallet-address" class="address-text" title="" aria-label="Your receiving address">—</code>
+            <button id="copy-address" class="btn btn-secondary copy-btn" type="button"
+                    aria-label="Copy full address to clipboard" disabled>
+              <span class="btn-label">Copy</span>
+            </button>
+          </div>
+          <p class="address-hint">Share this address to receive OBX. It is safe to share publicly.</p>
+
+          <div class="qr-wrap">
+            <canvas id="address-qr" class="qr" width="200" height="200"
+                    role="img" aria-label="QR code of your receiving address"></canvas>
+            <p id="qr-empty" class="empty-state">QR appears once the address loads.</p>
+          </div>
+        </article>
+
+        <article class="card balance-card">
+          <div class="card-head">
+            <h3 class="card-title">Balance</h3>
+          </div>
+          <div class="balance-value">
+            <span class="num" id="wallet-balance" aria-busy="true">—</span>
+            <span class="balance-ticker">OBX</span>
+          </div>
+          <div class="balance-meta">
+            <span id="wallet-outputs">— spendable outputs</span>
+          </div>
+        </article>
+
+        <article class="card send-card">
+          <div class="card-head">
+            <h3 class="card-title">Send OBX</h3>
+          </div>
+          <form id="send-form" novalidate>
+            <div class="field">
+              <label for="send-to">Recipient address</label>
+              <input id="send-to" name="to" type="text" inputmode="latin"
+                     autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                     maxlength="256" pattern="[0-9a-fA-F]+"
+                     placeholder="recipient hex address"
+                     aria-describedby="send-to-err send-to-hint" required />
+              <span id="send-to-hint" class="visually-hidden">Hexadecimal characters only, up to 256 digits.</span>
+              <p id="send-to-err" class="field-err" role="alert" hidden></p>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="send-amount">Amount (OBX)</label>
+                <input id="send-amount" name="amount" type="text" inputmode="decimal"
+                       autocomplete="off" placeholder="0.000000000000"
+                       aria-describedby="send-amount-err" required />
+                <p id="send-amount-err" class="field-err" role="alert" hidden></p>
+              </div>
+              <div class="field">
+                <label for="send-fee">Fee (OBX)</label>
+                <input id="send-fee" name="fee" type="text" inputmode="decimal"
+                       autocomplete="off" value="0.0001"
+                       aria-describedby="send-fee-err" />
+                <p id="send-fee-err" class="field-err" role="alert" hidden></p>
+              </div>
+            </div>
+
+            <p class="send-warning" role="note">
+              <span aria-hidden="true">⚠</span>
+              Transactions are irreversible. Double-check the recipient before sending.
+            </p>
+
+            <button id="send-submit" class="btn btn-primary btn-block" type="submit">
+              <span class="btn-label">Review &amp; send</span>
+              <span class="spinner" aria-hidden="true" hidden></span>
+            </button>
+          </form>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer" role="contentinfo">
+    <p>
+      Obscura (OBX) local dashboard · Obscura mainnet, live ·
+      runs fully offline on <code id="footer-host">this machine</code>.
+      Never share your seed file.
+    </p>
+  </footer>
+
+  <!-- Confirmation modal -->
+  <div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true"
+       aria-labelledby="confirm-title" aria-describedby="confirm-body" hidden>
+    <div class="modal" role="document">
+      <h2 id="confirm-title" class="modal-title">Confirm transaction</h2>
+      <div id="confirm-body" class="modal-body">
+        <dl class="confirm-list">
+          <dt>To</dt>
+          <dd><code id="confirm-to" class="address-text"></code></dd>
+          <dt>Amount</dt>
+          <dd class="num"><span id="confirm-amount"></span> OBX</dd>
+          <dt>Fee</dt>
+          <dd class="num"><span id="confirm-fee"></span> OBX</dd>
+          <dt>Total</dt>
+          <dd class="num"><strong><span id="confirm-total"></span> OBX</strong></dd>
+        </dl>
+        <p class="confirm-warn">This cannot be undone.</p>
+      </div>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="confirm-send" class="btn btn-primary" type="button">
+          <span class="btn-label">Send now</span>
+          <span class="spinner" aria-hidden="true" hidden></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast region -->
+  <div id="toasts" class="toast-region" role="region" aria-label="Notifications" aria-live="polite"></div>
+
+  <script src="qr.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

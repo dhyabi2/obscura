@@ -1,0 +1,38 @@
+sequenceDiagram
+    autonumber
+    participant T as Taker (XNO funder, OBX claimer)
+    participant M as Maker (OBX funder, XNO sweeper)
+    participant OBX as OBX chain
+    participant XNO as XNO ledger
+
+    Note over T,M: shares minted independently<br/>K=A+B, T=sA.G==Sa, account=(sA+sB).G
+    T->>M: 1. Init (SwapID, A, Sa, PoP_A, Ra, T=sA.G, OBXamt, raw XNOamt, fee)
+    Note over M: HandleInit: verify amounts+fee+PoP, derive K,R,account
+    M->>T: 2. MakerCommit (B, Sb, PoP_B, Rb)
+    Note over T: HandleMakerCommit: verify PoP_B, derive K, R=Ra+Rb, account
+
+    M->>OBX: Fund SwapOut -> K (refund=B, bind ClaimR=R ClaimT=T, unlock h)
+    OBX-->>M: SwapOut mined/confirmed
+    M->>T: 3. Funded (SwapKey, UnlockHeight)
+    T->>OBX: FindSwapOut + checkSwapOut (K, on-chain amount, window, R, T, refund=B)
+    OBX-->>T: matches
+
+    T->>XNO: Lock real XNO -> joint (sA+sB).G account
+    XNO-->>T: lock id (cemented)
+    T->>M: 4. XNOLocked (lock id)
+    M->>XNO: Confirmed + LockInfo (dest account, amount)
+    XNO-->>M: pays joint key, exact agreed amount
+
+    T->>OBX: BuildClaim (unsigned claim tx -> core hash)
+    T->>M: 5. ClaimRequest (core hash, s_a = ra + e.a)
+    Note over M: verify s_a.G = Ra + e.A, one-coreHash nonce guard, store s_a
+    M->>T: 6. ClaimPreSig (s_b = rb + e.b)
+
+    Note over T: aggregate s_a+s_b, adapt with sA, verify full under K
+    T->>OBX: MineClaim -> takes OBX, publishes S_full (reveals sA)
+    T-->>M: (optional) ClaimDone hint - drained and ignored
+    M->>OBX: FindSwapSpend (scrape published S_full)
+    OBX-->>M: S_full
+    Note over M: extract sA = S_full - s_a - s_b, recover sA+sB
+    M->>XNO: Sweep joint -> maker sweep address
+    XNO-->>M: swept , swap settled

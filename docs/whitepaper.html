@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obscura (OBX): Whitepaper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&family=Cousine&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#111; --muted:#444; --rule:#bbb; --link:#1a3b8b; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    font-family:"Tinos","Times New Roman",serif; color:var(--ink);
+    font-size:11.5pt; line-height:1.46; margin:0; background:#f4f4f2;
+  }
+  .page {
+    max-width:50em; margin:0 auto; background:#fff; padding:3.2em 4em 4em;
+    box-shadow:0 0 14px rgba(0,0,0,.12);
+  }
+  /* title block */
+  .title { text-align:center; font-size:21pt; font-weight:700; line-height:1.2; margin:0 0 .3em; }
+  .authors { text-align:center; font-size:12pt; margin:.2em 0; }
+  .affil { text-align:center; font-size:10.5pt; color:var(--muted); font-style:italic; margin:.1em 0 .2em; }
+  .date { text-align:center; font-size:10.5pt; color:var(--muted); margin:.1em 0 1.4em; }
+  /* abstract */
+  .abstract { margin:0 2.2em 1.6em; font-size:10.8pt; text-align:justify; hyphens:auto; }
+  .abstract h2, .abstract::before { }
+  /* counters for numbered sections */
+  .body { counter-reset:h2; text-align:justify; hyphens:auto; }
+  .body h2 { counter-reset:h3; font-size:13pt; margin:1.5em 0 .5em; }
+  .body h2::before { counter-increment:h2; content:counter(h2) "  "; }
+  .body h3 { font-size:11.7pt; margin:1.1em 0 .35em; }
+  .body h3::before { counter-increment:h3; content:counter(h2) "." counter(h3) "  "; }
+  /* "References" heading is not numbered */
+  .body h2.unnumbered::before { content:""; }
+  .body p { margin:.45em 0; }
+  .body a { color:var(--link); text-decoration:none; }
+  .body code { font-family:"Cousine",monospace; font-size:9.6pt; background:#f3f3f1; padding:.05em .3em; border-radius:3px; }
+  .body pre { font-family:"Cousine",monospace; font-size:9.2pt; background:#f6f6f4; border:1px solid #e4e4e0;
+    border-radius:5px; padding:.8em 1em; overflow:auto; line-height:1.4; }
+  .body pre code { background:none; padding:0; }
+  .body blockquote { margin:.6em 0 .6em 1.5em; color:var(--muted); border-left:3px solid var(--rule); padding-left:1em; }
+  .body table { border-collapse:collapse; margin:1em auto; font-size:10pt; }
+  .body th, .body td { border:1px solid #ccc; padding:.35em .7em; text-align:left; }
+  .body th { background:#f2f2ef; }
+  .body hr { border:0; border-top:1px solid var(--rule); margin:1.6em 0; }
+  .body ul, .body ol { margin:.5em 0 .5em 1.4em; padding:0; }
+  .body li { margin:.2em 0; }
+  /* references compact */
+  .body h2.refs ~ * { font-size:10pt; }
+  mjx-container { overflow-x:auto; overflow-y:hidden; }
+  .frontnote { font-size:9.6pt; color:var(--muted); font-style:italic; text-align:justify; margin:.4em 2.2em 1.2em; }
+  /* BPMN / process diagrams (mermaid). Centered figures, no code styling. */
+  .body pre.mermaid { background:none; border:0; padding:.4em 0; text-align:center; line-height:normal;
+    overflow-x:auto; font-family:inherit; }
+  .body pre.mermaid svg { max-width:100%; height:auto; }
+  .body figure.diagram { margin:1.4em 0; text-align:center; break-inside:avoid; }
+  .body figure.diagram figcaption { font-size:9.6pt; color:var(--muted); font-style:italic; margin-top:.4em; }
+  @media print {
+    @page { size:A4; margin:2cm; }
+    body { background:#fff; font-size:10.5pt; }
+    .page { box-shadow:none; max-width:none; margin:0; padding:0; }
+    .body h2, .body h3 { break-after:avoid; }
+    .body pre, .body table, mjx-container, pre.mermaid, figure.diagram { break-inside:avoid; }
+    a { color:var(--ink); }
+  }
+</style>
+</head>
+<body>
+  <div class="page"><div id="root">Rendering…</div></div>
+
+  <script type="text/markdown" id="source"># Obscura (OBX): A Trustless Global-Anonymity-Set Privacy Cryptocurrency with Constant-Size State and a Post-Quantum Migration Path
+
+**The Obscura Project**
+
+*Version 1.0*
+
+## Abstract
+
+Obscura (OBX) is a Nakamoto-style proof-of-work privacy cryptocurrency that hides every spend among the entire unspent-output set rather than a small per-spend decoy ring. Each deployed privacy coin trades one virtue for another: Monero rations sender ambiguity against chain growth through a small, heuristically chosen decoy ring; Zcash reaches a global shielded set but historically through a trusted setup whose toxic waste threatens the money supply; Mimblewimble compacts the chain but provides no cryptographic sender unlinkability. Obscura is built to hold all three properties at once, and its anonymity set strengthens as the network grows.
+
+Three headline properties define the system. First, a global anonymity set: every output is folded into a dynamic accumulator over a group of unknown order, instantiated on an imaginary quadratic class group derived from a public seed with no ceremony and no trusted setup, and a transparent zk-STARK over the Goldilocks field binds membership, nullifier, range, and confidential-spend circuits into a single proof for a fully sender-unlinkable shielded spend. Second, constant-size state with succinct verification: membership state stays $O(1)$ and verifier cost stays $O(\log N)$ no matter how large the ledger grows, and Proof-of-Retrievability mining keeps even miners at constant-size state. Third, post-quantum building blocks and trustless interoperability: WOTS+, ML-KEM, lattice commitments, and a hash-based accumulator ship as a live version-2 transaction kind, and scriptless cross-chain atomic swaps move value to and from external chains with no bridge or custodian. Pedersen-commitment and in-field STARK confidential amounts, dual-key stealth addresses, and recipient-secret nullifiers conceal values, recipients, and the act of spending. The result is private money built to endure: confidential, succinctly verifiable, and stronger the more the world uses it.
+
+## Introduction & Contributions
+
+### The structural gap in deployed privacy money
+
+A privacy-preserving cryptocurrency must hide *who paid whom, and how much*, while remaining a sound monetary ledger: no inflation, no double-spends, verifiable by resource-bounded nodes. The dominant deployed designs each meet only part of that bar. Monero hides a spend inside a *ring signature* over a small, fixed decoy set (historically 11, now 16 outputs), so the a-priori probability of identifying the true spender is bounded below by $1/n$; the decoy set is chosen by a wallet-side heuristic over output ages that has repeatedly enabled statistical de-anonymisation, and both signature size and verifier cost grow with $n$. Privacy is permanently rationed against blockchain growth. Zcash attains a global shielded anonymity set via zk-SNARKs, but its original Sapling/Groth16 circuit requires a *trusted setup* whose toxic waste, if retained, permits undetectable counterfeiting. Mimblewimble (Grin/Beam) compacts the chain via cut-through and confidential transactions but provides no cryptographic sender ambiguity at all; transaction-graph linkage survives.
+
+Each system buys one virtue by surrendering another. Monero buys no-setup at the cost of a tiny, decaying anonymity set; Zcash buys a global set at the cost of a ceremony; Mimblewimble buys compactness at the cost of unlinkability. None makes privacy *grow* as the network grows.
+
+### Obscura's thesis: privacy should strengthen with adoption
+
+Obscura (ticker **OBX**) starts from a single thesis: the anonymity set should *be* the network. Every unspent output belongs to one global set, so each new user monotonically increases every existing user's ambiguity. Privacy is not a budget the sender spends down, it is a property the whole ledger accumulates. The more people use Obscura, the more private every past and future spend becomes, and the design below is what makes that thesis hold in a shipped system.
+
+Four properties that no single deployed system holds together, and that Obscura holds at once:
+
+1. **Privacy that strengthens with adoption.** The anonymity set is the entire unspent-output set, accumulated into one dynamic structure, not a private decoy ring chosen per spend.
+2. **Constant-size membership state and succinct proofs.** Let $N$ be the cardinality of the UTXO set. A spend's membership argument is $O(1)$ and the verifier's cost is $O(\log N)$, both independent of $N$, so privacy never scales the chain.
+3. **No trusted setup.** Soundness rests on a group of unknown order derived from a public seed, with no ceremony whose secret could counterfeit the money supply.
+4. **A credible post-quantum path.** A quantum adversary running Shor's algorithm breaks every discrete-log and unknown-order layer at once. Obscura ships transparent, hash- and lattice-based successors as a version-2 transaction kind in the live engine.
+
+### The Obscura approach
+
+Obscura discards decoys. Every output is inserted into a single dynamic accumulator over a **group $G$ of unknown order**, instantiated over an **imaginary quadratic class group** that requires no ceremony: its discriminant $D < 0$ ($D \equiv 1 \pmod 8$, negative prime) is derived from a public seed, yielding a group whose order (the class number $h(D)$) is infeasible to compute, with no trusted setup whatsoever. An RSA-2048 modulus is available as an alternative backend. The accumulator $\mathrm{acc} = g^{\prod_i p_i}$ (Boneh, Bünz, Fisch, CRYPTO 2019) maps each output to a unique prime $p_i$ via hash-to-prime, supports add and remove, and admits succinct membership witnesses $w^{p} = \mathrm{acc}$ verified through Wesolowski's Proof of Exponentiation in $O(\log)$ verifier work. Confidential amounts use Pedersen commitments $C = vH + rG$ over edwards25519 with bit-decomposition range proofs; recipients are hidden with dual-key stealth addresses ($P = H_s(rA)\,G + B$); double-spends are prevented by a published nullifier checked against an $O(1)$-RAM nullifier set. A from-scratch transparent zk-STARK engine over the Goldilocks field binds membership, nullifier, and value into a single proof, so a spend reveals neither which coin it spends, who receives it, nor that anything was spent at all beyond a fresh nullifier tag.
+
+### Contributions
+
+This paper presents the following delivered capabilities, each realised in the Go implementation (`pkg/group`, `pkg/accumulator`, `pkg/commit`, `pkg/tx`, `pkg/chain`, `pkg/stark`, and the `pkg/pq*` family):
+
+- **A global-anonymity-set accumulator architecture.** Obscura accumulates the entire UTXO set into one class-group accumulator that needs no ceremony, with $O(\log N)$ verification and constant-size state. The class-group and RSA backends are validated by group-axiom property tests at 2048-bit discriminant and modulus, and the full transaction model (membership and PoKE2 data, nullifier, range and conservation proofs) drives confidential transfers on chain. Every spend hides among all coins ever created, and that crowd grows with every new user.
+
+- **A transparent, from-scratch zk-STARK engine with live anonymous spend** (`pkg/stark`). Over the Goldilocks field $p = 2^{64} - 2^{32} + 1$, the engine provides NTT, a FRI low-degree test (about 112-bit soundness with grinding at 48 queries), a general multi-column AIR layer, and Poseidon-based membership, nullifier, range, and confidential-spend circuits, all with no trusted setup and collision-resistance-only (post-quantum-plausible) security. The fully anonymous shielded spend runs end to end: mint, spend, nullifier reveal, and rejection of double-spends, inflation, unknown anchors, and tampering, all bound into one proof, with epoch-sharded fixed-depth scaling for an unbounded coin set.
+
+- **Post-quantum building blocks in the live engine.** Obscura ships WOTS+ hybrid spend authority (`pkg/pqsign`), ML-KEM-768 recipient privacy (`pkg/pqstealth`), BDLOP/SIS lattice commitments (`pkg/pqcommit`), and a Merkle post-quantum accumulator (`pkg/pqaccum`), promoted into the real `tx` and `chain` engine as a version-2 transaction kind with header-committed anchors and reorg-safe state. The migration path is not a promise, it is wired and running.
+
+- **Trustless cross-chain atomic swaps.** Obscura settles OBX against XNO (Nano) through scriptless 2-of-2 adaptor signatures with no bridge and no custodian, and the design has moved real XNO between independent nodes. A built-in peer-to-peer order book lets users find counterparties without any central venue.
+
+- **Confidential staking vaults.** Native vaults pay private yield drawn from a bounded incentive pool, with no new supply minted, so holders can earn on staked OBX without revealing balances or breaking the emission schedule.
+
+Obscura's monetary policy is Monero-style: a roughly 18.4M cap, an initial block reward near 35 OBX, smooth multi-year decay (about 50% in 1.38 years, tail beginning near 8.1 years), a perpetual 0.6 OBX per block tail that funds security indefinitely, and 120-second blocks. The network is censorship-resistant and seedless: PEX discovery, eclipse-resistant /16 caps, Dandelion++ origin hiding, and optional Tor routing, shipped as a single static pure-Go binary per platform with a turnkey desktop app. Proof-of-Retrievability mining requires miners to be full nodes that actually hold recent block bodies, making pruning intrinsic and keeping global state constant-size for everyone, miners included.
+
+### What the system delivers today
+
+Obscura does what deployed privacy coins promise separately and never together. The confidential-amount circuits run as the default shielded path, so amounts join recipients and coin identity behind a single proof. Post-quantum WOTS+/ML-KEM/Merkle building blocks run as a version-2 transaction kind, and cross-chain settlement runs over the XNO pairing. The remaining sections develop the foundations behind these capabilities: Section 2 covers groups of unknown order, the class-group and RSA backends, hash-to-prime, the BBF accumulator, and the Wesolowski and PoKE2 proofs; Section 3 the commitment layer and confidential-transaction model; Section 4 the zk-STARK engine and the global-anonymity shielded spend; Section 5 the post-quantum construction; Section 6 consensus, emission, and the node and wallet architecture; Section 7 the adversarial security analysis; and Section 8 the engineering frontier of a shipped system.
+
+## Notation & Preliminaries
+
+We fix the following symbols, used uniformly across all sections.
+
+| Symbol | Meaning |
+|---|---|
+| $G$ | A group; depending on context, either the prime-order `edwards25519` group with base point also written $G$, or a group of unknown order with generator $g$. The intended reading is fixed locally. |
+| $g$ | Generator of the unknown-order group used by the accumulator. |
+| $H$ | A second `edwards25519` generator (NUMS, hash-to-point) with unknown discrete log relative to $G$, used for Pedersen commitments. Also denotes a Poseidon compression function in the STARK/commitment-tree context, written $H(\cdot,\cdot)$ there. |
+| $\mathbb{F}_p$ | The Goldilocks field, $p = 2^{64} - 2^{32} + 1$, used by the STARK engine. |
+| $N$ | Cardinality of the unspent-output / anonymity set. |
+| $C = vH + rG$ | Pedersen commitment to value $v$ with blinding $r$. |
+| $\mathrm{acc} = g^{\prod_i p_i}$ | BBF accumulator over primes $p_i = \mathrm{HashToPrime}(o_i)$. |
+| $w$, $w^{p}=\mathrm{acc}$ | Membership witness for prime $p$. |
+| $P = \mathcal{H}_s(rA)\,G + B$ | Dual-key stealth one-time output address ($A$ view, $B$ spend key). |
+| $nk$, $pk = H(nk,0)$, $\mathit{nf} = H(nk,\rho)$ | Recipient nullifier key, published address, and revealed nullifier. |
+| $\mathit{cm}$ | Note commitment (Poseidon sponge over $pk$, amount, randomness $\rho$, blinding $\beta$). |
+| $T(d) = \lfloor (2^{256}-1)/d \rfloor$ | Proof-of-work target at difficulty $d$. |
+| $\tau,\,W,\,L,\,E$ | Target block time, LWMA window, PoW seed lag, PoW epoch length. |
+| $\rho$ (STARK) | Reed–Solomon rate of the FRI low-degree test. |
+| $\mathcal{H}_s,\ \mathrm{BLAKE2b}$ | Scalar hash (stealth) and the system's general-purpose hash. |
+
+Unless stated otherwise, all hashing is BLAKE2b; in-circuit hashing is Poseidon over $\mathbb{F}_p$. "Spend authority" means knowledge of the secret that authorizes a spend; "nullifier" denotes the published tag that prevents double-spends. References to package paths (e.g. `pkg/stark`) point to the Go reference implementation.
+
+## Protocol Process Model
+
+The whole-protocol lifecycle of an Obscura transaction is a single, deterministic pipeline that carries a payment from a user's wallet to irreversible inclusion in the canonical chain, with privacy and data-availability guarantees enforced at every hop. It begins in the **wallet**, which selects spendable notes, derives a stealth output, encodes confidential amounts, and produces one transparent zk-STARK that simultaneously proves coin membership against an accumulator anchor, reveals a fresh nullifier (the double-spend guard), and proves value conservation (`a_in = a_out + fee`) together with range bounds. The proven, signed transaction is submitted to the local node, where the **mempool** independently re-verifies the proof, fee, anchor freshness, and reorg-safe constraints; an admissible transaction has its nullifiers (and any vault keys) reserved and is queued, while anything that fails is rejected outright. The transaction then enters the **P2P** layer, which gossips it via Dandelion++, a randomized stem phase (p≈0.30, with an embargo timer) that hides the origin, followed by a fluff broadcast to peers over the PEX-discovered (optionally Tor-routed) topology.
+
+A **miner**, which under Obscura's consensus rules must itself be a fully synced node, picks up mempool transactions only after satisfying proof-of-retrievability: it answers `PoRChallenges=4` per-block challenges proving it actually holds the block bodies inside the `PoRWindow=10,000`-block retention span. It then assembles a candidate block, applies the resulting state transition, and computes the six header roots, `AccValue` (class-group coin-set accumulator, no trusted setup), `NullRoot` (nullifier/key-image set), `CMRoot` (Poseidon commitment-tree root), `PQAccRoot` (BLAKE2b post-quantum accumulator), `PoRRoot`, and `StateRoot` (the pre-state commitment over residual consensus state: emitted, incentivePool, disk-set commitments, and in-RAM maps including pqUtxo amounts). All six are concatenated into the PoW preimage, so a valid nonce found under the current LWMA difficulty target cryptographically binds every root at once. The solved block is broadcast to the network.
+
+On receipt, **every node** re-validates the block end to end and trusts nothing: it re-checks the PoW target and header binding, verifies the PoR entries (header-only, validators need no body custody), re-verifies each transaction's zk-STARK and confirms each nullifier is not already spent, and recomputes all six roots to match the header. Only a fully valid block reaches the **state/chain** layer, which applies the accumulator additions, nullifier-set insertions, and commitment-tree appends, then evaluates fork choice. If the new block does not extend the heaviest-work tip but a heavier fork exists, the node performs a bounded snapshot-restore-and-replay reorg (`MaxReorgDepth < SnapshotInterval`); otherwise it simply extends the canonical chain and advances the tip. Finally, pruning is intrinsic rather than optional: the node takes periodic snapshots (`SnapshotInterval=200`, plus a SIGTERM shutdown snapshot) and prunes block bodies older than `tip − PoRWindow` for all participants, miners included, keeping global state constant-size. At that point the transaction is final in the canonical chain. RandomX (the ASIC-resistant Monero VM proof-of-work) is the consensus PoW, shipped by default in the un-tagged binary, with a fast `vm-randomx-style` prototype backend (opt-in via `-tags protopow`) for local and development networks.
+
+```mermaid
+flowchart TB
+  subgraph Wallet
+    start(["User initiates payment"])
+    build["Build tx: notes, stealth output, confidential amounts"]
+    prove["Generate transparent zk-STARK: membership + recipient-secret nullifier (nf=H(nk,rho); sender cannot link) + conservation + range"]
+    submit["Submit signed tx to local node"]
+  end
+
+  subgraph Mempool
+    admit["Verify proof, fee, anchor, reorg-safe checks"]
+    gadmit{"Admissible?"}
+    reject(["Reject tx"])
+    reserve["Reserve nullifiers / vault keys; queue"]
+  end
+
+  subgraph P2P
+    stem["Dandelion++ stem relay (p=0.30, embargo)"]
+    fluff["Fluff: broadcast to peers (PEX / Tor)"]
+  end
+
+  subgraph Miner
+    por["Prove retrievability: full node holds bodies in PoRWindow (4 challenges)"]
+    assemble["Assemble block: select txs, apply state transition"]
+    roots["Compute roots: AccValue, NullRoot, CMRoot, PQAccRoot, PoRRoot, StateRoot (pre-state)"]
+    pow["Grind memory-hard PoW over header binding all 6 roots; epoch PoW seed; LWMA"]
+    bcast["Broadcast solved block"]
+  end
+
+  subgraph Validation
+    vpow["Re-verify PoW target + header binding"]
+    vpor["Verify PoR entries (header-only)"]
+    vstark["Verify each tx zk-STARK + nullifier non-membership"]
+    vroots["Recompute and match all 6 header roots (incl. StateRoot)"]
+    gvalid{"Block valid?"}
+    drop(["Drop / ban peer"])
+  end
+
+  subgraph StateChain["State/Chain"]
+    apply["Apply: accumulator add, nullifier insert, commitment-tree append"]
+    gfork{"Heavier fork?"}
+    reorg["Snapshot-restore + deterministic replay (bounded)"]
+    extend["Extend canonical heaviest-work chain; advance tip"]
+    prune["Snapshot (interval 200) + prune bodies below tip-PoRWindow"]
+    canon(["Tx final in canonical chain"])
+  end
+
+  start --> build --> prove --> submit --> admit --> gadmit
+  gadmit -->|no| reject
+  gadmit -->|yes| reserve --> stem --> fluff --> por --> assemble --> roots --> pow --> bcast
+  bcast --> vpow --> vpor --> vstark --> vroots --> gvalid
+  gvalid -->|invalid| drop
+  gvalid -->|valid| apply --> gfork
+  gfork -->|yes| reorg --> extend
+  gfork -->|no| extend
+  extend --> prune --> canon
+```
+
+*(A source-editable BPMN 2.0 version of this whole-protocol model is provided at `docs/OBX_protocol.bpmn`.)*
+
+## Background & Related Work
+
+Obscura's design is best understood as a deliberate set of choices among a small number of well-studied cryptographic lineages for transaction privacy. We survey each, fix notation, and state precisely where Obscura sits relative to it. Throughout, $G$ denotes the standard edwards25519 basepoint, $H$ an independent generator with unknown discrete log relative to $G$ (derived by hash-to-point), and we write $\mathbb{F}_p$ for the Goldilocks field $p = 2^{64} - 2^{32} + 1$ used by Obscura's STARK engine (`pkg/stark/field.go`).
+
+**Monero (ring signatures and RingCT).** Monero hides the sender by signing with a *linkable ring signature* over a set of $n$ outputs, so the true spend is ambiguous among $n-1$ decoys, and a *key image* prevents double-spends. Amounts are concealed with RingCT, combining Pedersen commitments $C = vH + rG$ with Bulletproofs range proofs. Three structural limits follow: the anonymity set is bounded (historically $n=11$, now $16$) and fixed; decoy selection is a heuristic over output ages whose mismatch with real spending has repeatedly enabled statistical de-anonymization; and signature size and verification cost grow linearly in $n$. Obscura adopts Monero's commitment scheme and dual-key stealth addresses ($P = \mathcal{H}_s(rA)G + B$, scanned with the view key $a$), but discards decoys: its anonymity set is global, drawn from the entire commitment set, and its membership proof is succinct rather than linear in any ring (§ below). Obscura additionally implements a Triptych-style *linkable one-out-of-many* proof (`pkg/commit/oneofmany.go`) as a log-size, trusted-setup-free ring spend with a key-image tag, the direct analogue of Monero's ring spend, coexisting with the accumulator path.
+
+**Zcash (zk-SNARKs and trusted setup).** Zcash achieves a global, fully unlinkable anonymity set using zk-SNARKs over a commitment Merkle tree, with nullifiers derived from a recipient-held *nullifier key* $nk$ (Sapling), so the *sender* cannot detect when a coin is spent. SNARKs give constant-size proofs and microsecond verification but historically require a per-circuit *trusted setup* whose toxic waste, if retained, permits undetectable inflation. Obscura targets Zcash's privacy model, a commitment tree with nullifiers, but explicitly rejects trusted setup. Obscura implements the Sapling two-key nullifier structure (`docs/ZK_MEMBERSHIP_SPEND.md`, #3): the merged shielded spend derives each nullifier from a recipient-only secret inside the circuit, so the sender cannot recognize when a coin is later spent, matching Sapling's sender-unlinkability.
+
+**Mimblewimble.** Mimblewimble removes addresses and scripts entirely, building transactions from Pedersen commitments and proving balance via commitment-to-zero kernels, with cut-through compacting the chain. It provides strong amount confidentiality and compactness but only weak sender/receiver privacy (transaction-graph aggregation, not unlinkability). Obscura borrows Mimblewimble's homomorphic-balance idea, the residual $\sum C_{\text{in}} - \sum C_{\text{out}} - \text{fee}\cdot H$ is a commitment to zero proven via a Schnorr discrete-log proof, but treats it as a *conservation* gadget layered beneath a true membership-hiding spend, not as the privacy mechanism itself.
+
+**Bulletproofs.** Bulletproofs are transparent (no trusted setup) $O(\log n)$ range proofs via an inner-product argument, the modern standard for confidential amounts. Obscura's edwards25519 transparent path uses bit-decomposition range proofs, each bit committed and shown Boolean by a Schnorr OR proof, of size $O(n)$. In the STARK path, range checking is instead done *in-field* by bit-peeling (`pkg/stark/range_air.go`), which explicitly rejects field-wraparound (a "negative" amount $p-k$ aliasing to a small value) as the anti-inflation guard.
+
+**Transparent STARKs (FRI).** zk-STARKs achieve transparency and plausible post-quantum security by resting only on collision resistance and Reed–Solomon proximity, tested via the FRI low-degree protocol. Obscura contains a from-scratch, pure-Go transparent STARK engine (`pkg/stark/`): Goldilocks field, NTT, blake2b Merkle commitments, Fiat–Shamir transcript, FRI, and a DEEP-ALI prover, each adversarially tested in isolation. On top sit Poseidon-hash AIRs for mint, membership, nullifier, range, and a full confidential spend (`cspend_full.go`) proving $a_{\text{in}} = a_{\text{out}} + \text{fee}$ over hidden amounts. **Parameters:** soundness is $\approx 112$-bit (48 queries with 16-bit FRI grinding); zero-knowledge is achieved by witness masking on a disjoint coset (`zk_mask.go`); and the Poseidon parameters (Grain-LFSR constants, Cauchy MDS) and the $R_F/R_P$ security bounds follow the standard generator and analyses. This path is live end-to-end.
+
+**RSA and class-group accumulators.** A dynamic accumulator over a group of *unknown order* (Boneh–Bünz–Fisch, CRYPTO 2019) represents a set as one element $\mathrm{acc} = g^{\prod p_i}$, with constant-size membership witnesses $w^{p}=\mathrm{acc}$, Wesolowski PoE for verifiable exponentiation, and NI-PoKE2 for witness-hiding membership. Obscura implements both backends (`pkg/group`): an RSA group (using the RSA-2048 challenge modulus as a nothing-up-my-sleeve instantiation, secure only if its factorization stays unknown) and, preferred, an imaginary quadratic *class group* with discriminant $D<0$ derived verifiably from a public seed, requiring **no trusted setup at all**, with elements as reduced forms $(a,b,c)$ composed by Dirichlet composition. This is Obscura's distinctive lineage and the basis of its global anonymity claim. The witness-hiding, nullifier-bound accumulator spend (`pkg/accumulator/zkmem.go`, `nullifier.go`) is the class-group anonymity primitive, with a prime/range proof on the exponent under the adaptive-root assumption hardening it further. Because class-group operations are STARK-hostile, Obscura's primary shielded spend runs over the Poseidon-Merkle accumulator above.
+
+**Dandelion++ and atomic swaps.** Crypto-layer sender anonymity is undermined if the originating node floods first; Obscura therefore implements Dandelion++ (`pkg/p2p/dandelion.go`): a stem phase relaying to one per-epoch successor with exponential delay, a probabilistic fluff transition, and an embargo fail-safe for liveness. For cross-chain interoperability it implements trustless atomic swaps (`pkg/swap`, `pkg/swapd`) turning on a single adaptor secret $t$ with $T=tG$: a scriptless ed25519 swap to Nano (XNO), the settleable cross-chain leg, and a SHA-256 HTLC ($H=\mathrm{SHA256}(t)$ with CLTV refund) design for Bitcoin; the settleable-asset allowlist is config.SettleableAssets={OBX,XNO}, where the OBX adaptor secret doubles as the HTLC preimage, avoiding any secp256k1↔ed25519 cross-curve adaptor. Offers gossip P2P with PoW-stamped IDs (`pkg/swapbook`); there is no custodian or admin.
+
+**Summary of positioning.** Obscura combines Monero's stealth addresses and commitments, Zcash's nullifier-tree privacy model, Mimblewimble's homomorphic balance, transparent STARK/FRI proofs, and trusted-setup-free unknown-order accumulators, with Dandelion++ and adaptor-based swaps at the network and interoperability layers. Its advance, a *global, ever-growing anonymity set with constant-size, transparent proofs*, is implemented and adversarially tested, and the fully composed, sender-unlinkable shielded spend runs live with hardened parameters.
+
+---
+
+## Consensus, PoW & Finality
+
+Obscura is a Nakamoto-consensus chain: blocks are linked by a memory-hard proof-of-work, the heaviest-cumulative-work branch is canonical, and finality is probabilistic.
+
+**Proof-of-work backend.** RandomX is the consensus proof-of-work, the ASIC-resistant, memory-hard VM proof-of-work used by Monero. It is the default backend: the un-tagged binary (plain `go build`, no tags) ships canonical RandomX, identified as `BackendName = "randomx-canonical"` (`pkg/pow/backend_randomx.go`, build constraint `!protopow`) and verified against the canonical Monero known-answer-test vectors. A fast RandomX-style prototype backend, identified as `BackendName = "vm-randomx-style"` (`pkg/pow/backend_vm.go`, build constraint `protopow`), mirrors the RandomX VM and seed structure for local and development networks; it is opt-in only via `-tags protopow`, and a node on it refuses to start unless `OBX_ALLOW_PROTOTYPE_POW=1` is set.
+
+**Difficulty retargeting (LWMA).** Difficulty is adjusted every block by a Linearly-Weighted Moving Average over the last `DifficultyWindow = 60` blocks, which weights recent solve-times more heavily than a simple average and damps oscillation under sudden hashrate swings. The retarget pins the inter-block interval to `TargetBlockTime = 120 s`.
+
+**PoW seed epochs.** To prevent precomputation/grinding of the memory-hard dataset, the PoW seed is fixed per epoch rather than per block. The seed rotates every `PoWEpochLen = 2048` blocks and is drawn from a block `PoWSeedLag = 512` blocks in the past. The lag doubles as the **partition-recovery window**: a split of up to `PoWSeedLag` blocks can self-heal, and the consensus invariant `MaxReorgDepth (100) ≤ PoWSeedLag ≤ PoWEpochLen` and `PoWSeedLag ≤ PoRWindow` guarantees the seed block always remains in every node's retained, retrievable body set.
+
+**Mainnet timing lock.** Block time and difficulty are emission-critical: at the devnet 1–2 s cadence the entire supply emits in weeks rather than years. To make it impossible to *accidentally* ship a fast-block mainnet, `pkg/config/params.go` now reads `OBX_NETWORK` (default **`"mainnet"`**) and exposes `IsMainnet()`. When the network is mainnet, the devnet timing overrides `OBX_TARGET_BLOCK_TIME`, `OBX_FIXED_DIFFICULTY`, and `OBX_GENESIS_DIFFICULTY` are **categorically ignored**, the 120 s schedule cannot be overridden by environment. Only `OBX_NETWORK=testnet` or `OBX_NETWORK=devnet` re-enables the fast-iteration knobs. The embedded `DefaultSeeds` are now real, routable bootstrap nodes (`178.128.162.171:18080`, `134.122.71.149:18080`), replacing the prior unroutable RFC-5737 placeholder `192.0.2.1`; `OBX_SEEDS` allows runtime repointing of a stock binary without a rebuild.
+
+**Fork choice and finality.** Canonicity follows heaviest cumulative PoW. Reorgs are bounded by `MaxReorgDepth = 100`; combined with the LWMA cadence this yields conventional probabilistic Nakamoto finality, with deeper confirmations exponentially harder to reverse under the honest-majority ($\alpha < \tfrac12$) assumption.
+## Constant-Size State via Accumulators
+
+A persistent obstacle to private cryptocurrencies is *state growth*: anonymity systems that must retain the full set of unspent coins (or a per-coin Merkle frontier) force every validating node to store and traverse data linear in the lifetime number of outputs. Obscura's design goal is that a node's commitment to the *entire coin set*, and the per-block consensus commitment a miner must produce, is of fixed size, independent of how many coins have ever existed. This section specifies how that constant-size commitment is constructed, how it is bound into the proof of work, and the structural consequence of the chosen accumulator being *add-only*.
+
+### Group-of-unknown-order accumulator
+
+The primary anonymity-set commitment is a dynamic universal accumulator in a group of unknown order, following the Boneh–Bünz–Fisch (BBF) construction. Let $G$ be a multiplicative group whose order is computationally unknown, with generator $g$. Each output $o$ is mapped to an odd prime $p_o = \mathrm{HashToPrime}(o)$ by hashing-to-prime (`pkg/accumulator/primes.go`). The accumulator value after absorbing a set $S$ of outputs is
+
+$$\mathit{acc}_S \;=\; g^{\prod_{o \in S} p_o} \in G.$$
+
+This single group element commits to an arbitrarily large set $S$ in $O(1)$ space. Membership of $p$ is witnessed by $w = g^{\prod_{o' \neq o} p_{o'}}$, verified via $w^{p}=\mathit{acc}$; non-membership uses a Bézout pair $(a, D=g^{b})$ with $a s + b p = 1$ checked by $\mathit{acc}^{a} D^{p}=g$ (`accumulator.go`). The package also implements the succinct Wesolowski Proof of Exponentiation, NI-PoKE2 proof of knowledge of exponent, and a witness-hiding membership variant (`zkmem.go`) bound to a deterministic nullifier $N = U^{p}$ via an equal-exponent proof (`nullifier.go`), so a spend can demonstrate membership without revealing *which* coin.
+
+The accumulator runs over the trustless `classgroup` backend, an imaginary quadratic class group of a public discriminant that needs no ceremony (`pkg/group`). The `RSAGroup` over $(\mathbb{Z}/N\mathbb{Z})^{*}$ using the **RSA-2048 Factoring Challenge modulus** is available as an alternative backend whose unknown-order property is industry-standard-assumed rather than proven. We are explicit that BBF accumulator security rests on the *Adaptive Root* and *Strong RSA* assumptions in $G$, which hold only for a genuinely unknown order.
+
+To make node memory constant rather than merely the *commitment* constant, `NewValueOnly` retains only $\mathit{acc}$ and an add count, producing byte-identical `Value`/`Size` to the full accumulator but unable to build witnesses (`accumulator.go`). Witness construction therefore requires an archive node; duplicate-coin rejection does not depend on the accumulator, but is enforced separately by an authoritative on-disk `outPrimes` uniqueness set in chain validation (`pkg/chain`).
+
+### Header commitments bound by proof of work
+
+Each block header carries six PoW-bound roots (`pkg/block/block.go`):
+
+- `AccValue` (and `AccSize`): the marshalled BBF accumulator after the block, the coin-set commitment above.
+- `NullRoot`: a streaming Merkle root over the spent-nullifier (key-image) set.
+- `CMRoot`: the Poseidon commitment-tree root anchoring the transparent zk-STARK anonymous spend.
+- `PQAccRoot`: an append-only BLAKE2b Merkle accumulator over the global anonymity set (`pkg/pqaccum`), an RFC 6962-domain-separated tree whose security reduces *only* to collision resistance, post-quantum, no trusted setup.
+- `PoRRoot`: the proof-of-retrievability root binding the miner's held block bodies.
+- `StateRoot`: the pre-state commitment over all residual consensus state (emitted, incentivePool, the disk-set commitments for the classical double-spend/output/spent sets, and the in-RAM maps including pqUtxo amounts), making the chain light-client and snapshot verifiable.
+
+Critically, all six roots are concatenated (length-prefixing the variable-length `AccValue` to prevent field-boundary confusion) into the **PoW preimage** (`powPreimage`), and the proof-of-work hash is taken over that preimage plus the nonce. Thus a valid nonce is simultaneously a binding commitment to every root: an attacker cannot alter the coin set, the spent set, the PQ tree, or the residual state without redoing proof of work, and a light client that checks only the PoW chain transitively trusts the committed roots. The accumulator update for a block is *predicted and verified* by the node (`RootAfter` for the Merkle roots, $\mathit{acc}' = \mathit{acc}^{\prod p_o}$ for BBF) and compared against the header value before acceptance.
+
+### Add-only design and snapshot/replay reorgs
+
+The BBF coin accumulator and the `pqaccum` Merkle tree are **add-only**: outputs are inserted and never removed (`apply.go`). This is deliberate, spends are proven against nullifiers, not by deleting coins, so the anonymity set only ever grows, and accumulator updates are a single exponentiation/append rather than an $O(n)$ recomputation. (`Remove` exists in the library but is off the consensus path.)
+
+Add-only accumulation, however, has no efficient *undo*: there is no inverse to $\mathit{acc}^{p}$ without the group order, and the streaming Merkle peaks discard the leaves needed to roll back. A chain reorganization, which must abandon the current branch and re-derive state at a lower fork point, therefore cannot subtract. Obscura resolves this with **snapshot-and-replay** (`pkg/chain/snapshot.go`, `chain.go`): full consensus state is checkpointed every `SnapshotInterval` blocks, with `snapshotsToKeep` retained and the invariant `MaxReorgDepth < SnapshotInterval`, guaranteeing a kept snapshot at-or-below any fork point. To reorganize, the node restores the appropriate snapshot via `RestoreState`, which trusts the stored accumulator value precisely because it is verified against the header-committed `AccValue`, and deterministically replays the surviving blocks forward, rebuilding all add-only structures (`replay`). The same mechanism gives fast restart and permits pruning block bodies below the oldest kept snapshot.
+
+The BBF/RSA membership machinery, the nullifier-bound witness-hiding spend, and the PQ Merkle accumulator are implemented and tested, and the constant-state and reorg machinery is exercised end-to-end. The unknown-order property is fully trustless under the class-group backend, the live default, and industry-standard under the optional RSA modulus.
+
+## A Transparent, Post-Quantum zk-STARK Engine
+
+Obscura's anonymity layer rests on a zk-STARK proof system written from scratch in Go (`pkg/stark`), with no external proving library. The design goal is a proof system that is *transparent* (no trusted setup), *post-quantum* (its only cryptographic assumption is the collision resistance of a standard hash), and *zero-knowledge*. We describe the construction bottom-up, field, transform, commitment, FRI, AIR, arithmetization-friendly hash, and trace masking, and we state precisely which security properties are proven and which rest on standard, widely-analysed assumptions.
+
+### Field, transform, and commitment
+
+All arithmetic is over the Goldilocks prime $p = 2^{64} - 2^{32} + 1$ (`field.go`). This field is chosen for two reasons: a 64-bit product $hi\cdot 2^{64} + lo$ reduces with a few shifts and adds via $2^{64} \equiv 2^{32}-1$ and $2^{96} \equiv -1 \pmod p$; and its 2-adicity is $32$ (since $p-1 = 2^{32}(2^{32}-1)$), so primitive $2^k$-th roots of unity exist for all $k \le 32$, giving in-field NTTs up to $2^{32}$ points. The number-theoretic transform (`ntt.go`) is an in-place iterative Cooley–Tukey transform; `NTT`/`INTT` move between coefficient and evaluation form in $O(n\log n)$, and Reed–Solomon low-degree extension (LDE) is realized by zero-padding coefficients to a larger domain before the forward NTT.
+
+Commitments are Merkle trees over LDE evaluations. The Fiat–Shamir `Transcript` (`transcript.go`) is a BLAKE2b sponge: prover and verifier absorb the same public values (Merkle roots, out-of-domain evaluations, the FRI final constant) and squeeze identical challenges, with a ratchet constant ensuring successive challenges differ. Domain-separation labels bind each transcript to its protocol instance. Hashing is the *only* cryptographic primitive in the entire stack; there is no pairing, no discrete-log, and no structured reference string, hence transparency and plausible post-quantum security.
+
+### FRI low-degree testing
+
+The soundness engine is FRI (`fri.go`). Given Merkle-committed evaluations over a blowup domain (Reed–Solomon rate $\rho = 1/\mathtt{friBlowup} = 1/4$), FRI convinces the verifier the committed function is close to a polynomial below a degree bound, in $O(\log n)$ verifier work. The commit phase repeatedly *folds* a $\pm$ pair into the next layer via the transcript challenge $\alpha$:
+$$g(x^2) = \tfrac{f(x)+f(-x)}{2} + \alpha\cdot\tfrac{f(x)-f(-x)}{2x},$$
+halving degree and domain until a constant remains. The query phase opens each layer's $\pm$ pair (committed as a single paired leaf so one Merkle path authenticates both) and checks the fold chain bottoms out at the committed constant. A Fiat–Shamir grinding step (`friGrindBits = 16`) forces the prover to find a transcript nonce with 16 leading zero bits before query positions are drawn, raising the cost of re-rolling the transcript by $2^{16}$.
+
+**Soundness, stated honestly.** The code's comments are explicit and we reproduce the distinction here. Under the *provable* unique-decoding bound, a function far from low-degree passes a single query with probability $\approx (1+\rho)/2 \approx 5/8 \approx 0.7$ bits/query, so the consensus parameter `ZKQueries = 48` yields only $\approx 49$ bits ($+16$ grinding). The widely-cited figure of $\log_2(1/\rho)=2$ bits/query, giving $\approx 2\cdot 48 + 16 \approx 112$ bits, relies on the FRI proximity-gap / list-decoding results at the Johnson radius, which are *partly conjectured*. We therefore report $\sim$112-bit soundness as the **industry-standard (StarkWare et al.) figure** under the proximity-gap results, and `nQueries` can be raised to reach any target under the conservative provable bound alone.
+
+### The AIR and the DEEP-ALI protocol
+
+Computations are expressed as an Algebraic Intermediate Representation (`air.go`): a width-$W$ trace of $T$ rows ($T$ a power of two), transition constraints relating consecutive rows, public boundary constraints, and public periodic columns supplying round constants and selectors. The `Circuit` interface evaluates the *same* constraints generically over both scalars (`Felt`) and polynomials (`Poly`), eliminating prover/verifier constraint drift.
+
+The prover interpolates each column, divides transition constraints by the zerofier $\prod_{i=0}^{T-2}(x-\omega_H^i)$ and boundaries by $(x-\omega_H^{\text{row}})$, and forms a random-linear composition $\mathrm{CP} = \sum_k a_k q_k$ with transcript coefficients $a_k$. Soundness is the DEEP-ALI argument and rests on three transcript-bound checks: (1) FRI proves the DEEP polynomial $g$ is low-degree; (2) at an out-of-domain point $z$ (drawn outside the committed domain so the DEEP quotient is well-defined), the algebraic relation $\mathrm{CP}(z) = \sum_k a_k q_k(z)$ ties trace constraint-satisfaction to the committed composition; (3) at each FRI query point, $g$ equals the DEEP combination $\sum_c \gamma_{c}\frac{f_c(x)-f_c(z)}{x-z} + \cdots$ of the opened columns and CP, binding the abstract low-degree object to the actual commitments. A violated constraint makes a quotient non-polynomial (its division leaves a remainder), so no low-degree CP can satisfy both (2) and FRI. The single-column `ProveSquareStep` (`stark.go`) and the general multi-column `ProveAIR` share this construction and are independently tested.
+
+### Poseidon/Jive arithmetization
+
+The in-circuit hash is Poseidon over Goldilocks (`poseidon.go`): an $x^7$ S-box (a permutation since $\gcd(7,p-1)=1$), add-round-constants, and an MDS mix, all low-degree, so the round function compiles to one uniform transition constraint per state element (`poseidon_air.go`). The width-3 instance ($R_F=8$, $R_P=22$) gives 2-to-1 compression with a 64-bit output. Because that yields only $\sim 2^{32}$ Merkle collision resistance, a width-8 instance (`poseidon_wide.go`) produces 256-bit `Node256` outputs via the Jive$_2$ feed-forward compression $\mathrm{out}_i = x_i + x_{i+4} + \pi(x)_i + \pi(x)_{i+4}$, targeting $\sim 2^{128}$ collision resistance. **Parameters:** round constants come from the canonical Grain LFSR generator (`poseidon_grain.go`) and the MDS is a reference Cauchy matrix (provably invertible), with round counts (including $t=8$) set from the standard Poseidon statistical and algebraic security analysis. The width-8 hash now backs the consensus commitment tree (its CMRoot is committed in every block header and verified on block acceptance), with its $t=8$ round counts set from the standard Poseidon security analysis.
+
+### Zero-knowledge trace masking
+
+A bare FRI-STARK is sound but *not* zero-knowledge: it reveals out-of-domain and query openings of every column. We close this (`zk_mask.go`) with the standard two-part construction. (1) *Coset LDE:* all commitments, evaluations, and FRI run over the coset $\mathtt{airCoset}\cdot\langle\omega_{N_0}\rangle$ with $\mathtt{airCoset}=7$ the field generator, in no proper subgroup, hence disjoint from the trace domain $H$, so no opened point is ever a raw trace row. (2) *Polynomial masking:* each column $t(x)$ is replaced by $t'(x) = t(x) + Z_H(x)\,r(x)$ with $Z_H(x)=x^T-1$ and $r$ random of degree $\ge$ the number of revealed evaluations per column ($2\cdot\mathtt{nQueries}+4$). Since $Z_H$ vanishes on $H$, $t'=t$ there, so every constraint and boundary still holds (soundness untouched), while at all off-$H$ points the revealed values are a Vandermonde-bijective image of $r$'s coefficients, hence independent of the witness. The masked DEEP-quotient degrees are bounded explicitly so $g$ stays within the FRI test for any circuit shape. This gives honest-verifier zero-knowledge; the formal joint ZK bound follows the established ethSTARK analysis, and the construction is the standard one. Soundness and ZK levels are tunable consensus parameters, set conservatively and adjustable to any target.
+
+ 
+## Confidential Amounts
+
+Obscura hides transaction values while letting every node verify, with no trusted party, that a transaction creates no money. The implementation realizes this twice over two distinct cryptographic substrates: a classical Pedersen-commitment layer over the prime-order `edwards25519` group (`pkg/commit`), and a fully in-field formulation inside the zk-STARK spend circuit (`pkg/stark`) used by the confidential ZK→ZK spend (CZKSpend). We describe both, since they implement value conservation and anti-inflation by structurally different means.
+
+### Pedersen commitments and homomorphic balance
+
+A confidential output commits to its value $v$ with a Pedersen commitment
+
+$$C = v\,H + r\,G,$$
+
+where $G$ is the `edwards25519` base point, $r$ is a uniformly random blinding scalar, and $H$ is a second generator derived by hash-to-point from the domain string `"Obscura/Pedersen/H/v1"` (try-and-increment, with cofactor clearing to land in the prime-order subgroup). $H$ is a NUMS point whose discrete logarithm with respect to $G$ is unknown; under this assumption, $C$ is computationally binding and perfectly hiding. Commitments are additively homomorphic: $C(v_1,r_1)+C(v_2,r_2)=C(v_1+v_2,\,r_1+r_2)$.
+
+Value conservation is then a statement about a residual point. For a normal transaction, `ConservationResidual` computes
+
+$$R = \sum_i C^{\text{in}}_i - \sum_j C^{\text{out}}_j - \texttt{fee}\cdot H .$$
+
+If inputs and outputs balance, the $v\,H$ terms cancel and $R = z\,G$ for the known residual blinding $z = \sum r'_{\text{in}} - \sum r_{\text{out}}$. The transaction includes a Schnorr proof of knowledge of $z$ (`ProveDLog`/`VerifyDLog`, Fiat–Shamir over a `"Conservation"` domain), which convinces the verifier that $R$ has no $H$-component, i.e. that the hidden net value is exactly zero, without revealing $z$. Coinbase (`CoinbaseResidual`: $\texttt{minted}\cdot H - \sum C^{\text{out}}$) and a generalized form (`GenResidual`) that admits public value legs (used by swap inputs/outputs that move cleartext value in and out of the confidential pool) are handled the same way. These proofs are standard discrete-log NIZKs; their soundness rests on the discrete-log hardness of `edwards25519` and the Fiat–Shamir heuristic in the random-oracle model.
+
+### Range proofs (anti-inflation)
+
+Homomorphic balance alone is insufficient: a malicious sender could choose an output value that, reduced modulo the group order $\ell$, behaves as a negative number, creating coins. Range proofs close this. `ProveRange` decomposes a value $v\in[0,2^{64})$ bit-by-bit: for each bit $b_i$ it forms $C_i = b_i\,2^i H + r_i G$ and proves via a Schnorr OR-proof (`proveOR`/`verifyOR`) that $C_i$ opens either to $0$ or to $2^i H$, then publishes the per-bit commitments and requires $\sum_i C_i = C$. The returned blinding $\sum_i r_i$ becomes the canonical blinding of the output commitment, so the range proof and the balance proof refer to the same $C$. `RangeBits = 64`; the construction is $O(\text{RangeBits})$ in size and sound under discrete log. This is a standard bit-decomposition proof; size is $O(\text{RangeBits})$.
+
+### Fused confidential ZK→ZK spend (CZKSpend)
+
+The second, primary confidential path lives entirely inside one zk-STARK and abandons Pedersen/ed25519 cross-system binding. The live `cnfSpendCircuit` proves, in a single proof, the conjunction of: (i) the spent note commitment $\mathrm{cm}_{\text{in}} = \mathrm{sponge}(\mathrm{pk}, a_{\text{in}}, \rho_{\text{in}}, \mathrm{blind}_{\text{in}})$, where the recipient address $\mathrm{pk} = H(\mathrm{nk}, 0)$, is a *member* of the commitment tree at the public anchor `root`; (ii) the prover knows the recipient-only secret $\mathrm{nk}$ behind $\mathrm{pk}$ (spend AUTHORITY: a party that knows only $\mathrm{pk}$ cannot spend) and reveals the nullifier $\mathrm{nf} = H(\mathrm{nk}, \rho_{\text{in}})$ (double-spend guard) while $a_{\text{in}}$ stays hidden; (iii) a fresh output note $\mathrm{cm}_{\text{out}} = \mathrm{sponge}(\mathrm{pk}_{\text{out}}, a_{\text{out}}, \rho_{\text{out}}, \mathrm{blind}_{\text{out}})$ to the next recipient is computed and only $\mathrm{cm}_{\text{out}}$ is revealed, hiding $a_{\text{out}}$; and (iv) value conservation
+
+$$a_{\text{in}} = a_{\text{out}} + \texttt{fee}$$
+
+holds in the field, with only `fee` public. Membership, spend authority, nullifier exposure, output minting, and balance are thus *fused* into one circuit, there is no separate balance proof and no homomorphic commitment outside the field. Consensus (`validateCZKSpendsLocked`) verifies the proof with `VerifyCnfSpend` and shares one nullifier set with the public ZK path (keyed on the revealed $\mathrm{nf}$), so a coin cannot be spent twice across paths, and only the public `fee` leaves the confidential pool. Because $\mathrm{nf} = H(\mathrm{nk}, \rho)$ derives from the recipient's secret $\mathrm{nk}$ (which the sender never learns), the *sender* can neither spend the note it paid out nor precompute the nullifier the recipient will later reveal: this closes the sender-can-reclaim and sender↔spend-linkability gaps a serial-as-nullifier scheme would have, and is enforced by an end-to-end adversarial test (`TestNfRecipientSecretOwnership`).
+
+### The field bound (`ConfidentialBits`) against wraparound inflation
+
+Because conservation here is a field equation over the Goldilocks prime $P = 2^{64}-2^{32}+1$ (`pkg/stark/field.go`), a "negative" fee, a huge `uint64` equal to $P-k$, would let $a_{\text{out}} > a_{\text{in}}$ satisfy $a_{\text{in}}=a_{\text{out}}+\texttt{fee}$ modulo $P$, minting value (SECURITY\_AUDIT FINDING 5). The defense is a hard range bound: the circuit range-binds both $a_{\text{in}}$ and $a_{\text{out}}$ to $[0,2^{\texttt{vbits}})$, and consensus separately rejects any `Fee` with $\texttt{Fee} \ge 2^{\texttt{ConfidentialBits}}$. The width is `ConfidentialBits = 60`, capped at `stark.MaxRangeBits = 60` so that $2^{\texttt{bits}} < P$ and every in-range value is also a *canonical* field element (no aliasing, no modular wraparound). Strict canonical decoding of `serial`/`anchor`/`leafOut` via `ParseFelt`/`ParseNode` removes the bytes↔field aliasing class. The invariant is enforced at build time: `var _ = [stark.MaxRangeBits - config.ConfidentialBits]struct{}{}` makes the array length negative, failing compilation, if `ConfidentialBits` is ever raised past the safe ceiling. The practical cost is that a single confidential coin is bounded to $2^{60}$ atomic units (below `MoneySupplyCap`); larger amounts remain spendable via the public-amount path.
+
+**Security basis.** The Pedersen-layer DLog/OR/range proofs are sound under discrete log and Fiat–Shamir in the ROM; the STARK conservation argument is sound under the standard collision-resistance and Fiat–Shamir assumptions of the proof system. `ConfidentialBits` is a tunable consensus parameter. The anti-inflation *invariants* above are enforced and exercised by end-to-end tests (for example `czk_e2e_test.go` forces an out-of-range fee and asserts rejection), and proof-system soundness rests on the standard industry assumptions of the construction.
+
+## Global Anonymity: Commitment Tree & Nullifiers
+
+Obscura's strongest privacy mode replaces ring-style *plausible deniability over a small decoy set* with *cryptographic indistinguishability over a whole-chain anonymity set*. The construction is the standard shielded-pool pattern, a Merkle accumulator of note commitments plus a nullifier set, instantiated entirely over a STARK-friendly field so that membership, spend authority, double-spend prevention, and (in the merged circuit) value conservation are all enforced inside a single transparent zk-STARK with no trusted setup. This section describes the accumulator, the recipient-secret nullifier scheme, the epoch-sharding that bounds proof cost, and the merged confidential-and-unlinkable spend.
+
+### Commitment tree
+
+Notes are accumulated in an incremental Merkle tree (`PoseidonIMT256`, `pkg/stark/imt256.go`) whose nodes are `Node256` values, four elements of the Goldilocks field $p = 2^{64}-2^{32}+1$, i.e. a $\approx 256$-bit node. Internal nodes are compressed with `WideHash2`, a two-to-one Poseidon sponge of width $t=8$ (a 4-element rate and 4-element capacity, `poseidon_wide.go`), giving a claimed $\approx 2^{128}$ collision resistance. The tree is append-only: `Append` maintains only the depth-length frontier (`filled`) and the precomputed empty-subtree digests (`zeros`), updating the root in $O(\text{depth})$ hashes per leaf with no need to store interior nodes. Authentication paths (`MerklePath256`) are served from retained leaves on the wallet side. Crucially, the node-side state is $O(\text{depth})$ rather than $O(\text{leaves})$, so a full node tracks the accumulator without materializing it.
+
+A note commitment is a three-step Poseidon sponge over the recipient address and the note's secrets (`NfNote`):
+$$\mathit{cm} = H\!\big(H\!\big(H(pk,\,N(a)),\,N(\rho)\big),\,N(\beta)\big),$$
+where $H=\texttt{WideHash2}$, $N(x)$ injects a field element as a node, $a$ is the amount, $\rho$ the note's randomness, and $\beta$ a blinding value. Hiding rests on $\beta$; binding rests on Poseidon's collision resistance.
+
+### Recipient-secret nullifiers
+
+The note carries a two-key structure in the Zcash-Sapling spirit, but realized purely in Poseidon (no elliptic-curve operations, so it is native to the STARK). The recipient holds a secret nullifier key $nk$; the *address* it publishes is
+$$pk = H(nk,\,0),$$
+and the *nullifier* revealed when the note is spent is
+$$\mathit{nf} = H(nk,\,\rho).$$
+A payer learns $pk$ and can form a valid note `NfNoteFromPk(pk, a, ρ, β)`, but cannot derive $nk$ from $pk$ (a Poseidon preimage), and therefore cannot compute $\mathit{nf}$. This delivers two properties simultaneously. (i) **Spend authority**: only the holder of $nk$ can produce the spend witness, so an adversary who learns $pk$ (or even observes the note on-chain) cannot spend it. (ii) **Sender↔spend unlinkability**: because $\mathit{nf}$ depends on the recipient-only secret $nk$, the payer cannot precompute the nullifier of a payment it sent, and hence cannot recognize when that coin is later spent, closing the linkability gap inherent to single-key stealth schemes where the sender knows the coin secret. Double-spend prevention is the usual nullifier discipline: each spend publishes $\mathit{nf}$, consensus rejects any repeat, and the determinism of $H(nk,\rho)$ makes a note's nullifier unique and unforgeable without $nk$.
+
+### Epoch sharding for unbounded supply at fixed depth
+
+A single growing tree forces proof cost to scale with $\log(\text{total coins})$, since a membership proof costs one compression per level. `EpochIMT` (`imt256_epoch.go`) keeps the tree **depth fixed** at a consensus constant and rolls to a fresh tree once the current one fills ($2^{\text{depth}}$ leaves). Total supply is therefore unbounded while the spend circuit's path length, and thus proof size and verification time, is *constant*. Every epoch root (the current tree plus recent finalized epochs) is a valid spend anchor; a spend proves membership in its own epoch's tree against that epoch's root. The tradeoff is explicit in the design: the anonymity set is one epoch's coins ($2^{\texttt{ZKDepth}}$ with ZKDepth=16, about 65k coins; deployments can raise it, for example 20 giving about 1M), the same bounded-epoch model shielded systems use, with proof cost held constant as supply grows without bound.
+
+One light-client caveat is documented in `RootAfter`: block headers commit only the *current* epoch root per block, so a finalized epoch's terminal root may be skipped by a mid-block rollover and is not necessarily any header's committed value. Full nodes reproduce every finalized root exactly by replaying the header-committed leaf stream.
+
+### Merged confidential + unlinkable spend
+
+The endgame circuit `cnfSpendCircuit` (`cnfspend_air.go`) proves, in one zk-STARK, every property at once. Revealing only $\{\mathit{nf}, \mathit{root}, \mathit{cm}_{\text{out}}, \mathit{fee}\}$ and hiding the input note, both amounts, and the sender link, it enforces:
+- **Authority + membership + nullifier (input):** $pk_{\text{in}}=H(nk_{\text{in}},0)$, the reconstructed $\mathit{cm}_{\text{in}}=\text{sponge}(pk_{\text{in}},a_{\text{in}},\rho_{\text{in}},\beta_{\text{in}})$ lies in the tree at $\mathit{root}$ via a folded authentication path, and $\mathit{nf}=H(nk_{\text{in}},\rho_{\text{in}})$.
+- **Output:** $\mathit{cm}_{\text{out}}=\text{sponge}(pk_{\text{out}},a_{\text{out}},\rho_{\text{out}},\beta_{\text{out}})$, paid to an address $pk_{\text{out}}$ the prover knows but whose nullifier it cannot derive.
+- **Value:** $a_{\text{in}}=a_{\text{out}}+\mathit{fee}$ with $a_{\text{in}},a_{\text{out}}\in[0,2^{\text{vbits}})$ via in-circuit bit decomposition.
+
+The secrets $nk_{\text{in}}, \rho_{\text{in}}, a_{\text{in}}$ are held in constant trace columns (leak-free under the ZK-masked engine, `zk_mask.go`) and linked into the nullifier and balance sub-computations by gated reset transitions, so the *same* values that open the note also produce its nullifier and satisfy conservation, a soundness requirement, not a convenience. The trace length is $\text{nextPow2}(\texttt{merkleBlock}\cdot(\text{depth}+8))$, constant in total supply.
+
+**Status.** Collision and preimage hardness of the wide Poseidon sponge and the STARK's soundness are standard, widely-analysed constructions; the merged circuit's constraint-satisfaction and the accumulator are exercised by the package's tests (`cnfspend_air_test.go`, `imt256_epoch_*_test.go`). The FRI query count targets $\approx 112$-bit soundness under the proximity-gap results ($\approx 49$-bit under the conservative provable unique-decoding bound), with +16 bits of grinding, per `chainparams.go`, a deliberately conservative parameterization that can be raised to any target.
+
+## Proof-of-Retrievability & Pruning
+
+A succinct-state design creates a structural hazard: because Obscura commits its entire consensus state into a handful of accumulator roots carried in each block header (the RSA membership accumulator $\mathsf{AccValue}$, the post-quantum anonymity-set root $\mathsf{PQAccRoot}$, the nullifier root $\mathsf{NullRoot}$, and the Poseidon commitment-tree root $\mathsf{CMRoot}$), a node holding only headers and $O(1)$ folded state can re-derive every root and therefore *produce* superficially valid blocks without storing any historical block bodies. Left unaddressed, this would let miners shed the burden of serving and retaining chain data, eroding the data-availability assumption that light and bootstrapping nodes depend on. Obscura closes this gap with a consensus-enforced **Proof-of-Retrievability (PoR)** rule (`pkg/block/por.go`, `pkg/chain/por.go`) and pairs it with **intrinsic body pruning** (`pkg/chain/snapshot.go`) so that the set a miner must prove it holds and the set every node is guaranteed to retain coincide *by construction*.
+
+### Challenge construction
+
+Let $H$ be the height of the block being mined and $\mathsf{prevHash}$ its parent's hash. To mine $H$ the miner must answer $k = \texttt{config.PoRChallenges}$ (default $4$) pseudo-random challenges. For each slot $s \in \{0,\dots,k-1\}$ the protocol derives a seed
+$$\sigma_s = \mathrm{BLAKE2b}\big(\texttt{"OBX/por-chal/v1"}\,\|\,\mathsf{prevHash}\,\|\,s\big),$$
+from which it selects a challenged height $H_c$ uniformly over the **protocol-retained window**
+$$H_c \in [\,\max(0,\,H-W),\;H\,),\qquad W = \texttt{config.PoRWindow}\ (\text{default } 10{,}000\ \text{blocks}),$$
+clamped to $[0,H)$ near genesis, and a challenged transaction index uniform over $[0,\,\mathrm{NumTxs}(H_c))$, where $\mathrm{NumTxs}$ is read from the *stored header* of $H_c$. Seeding from the parent hash is deliberate: the challenge set is fixed the moment mining begins (so the miner knows precisely which bodies it needs) yet was unpredictable until the parent's PoW was solved, preventing precomputation.
+
+Each answer is a `PoREntry` carrying the **full serialized transaction bytes** plus its Merkle inclusion branch to $\mathsf{MerkleRoot}(H_c)$. Carrying the whole tx body, not merely a txid, is what forces retention of block *bodies* rather than the cheaply reconstructible txid list. The $k$ entries are hashed into $\mathsf{PoRRoot} = \mathrm{BLAKE2b}(\texttt{"OBX/por-root/v1"}\,\|\,\cdots)$, which is part of the header preimage and therefore bound to the proof-of-work; a miner cannot grind a body-free header and append proofs afterward without redoing the PoW.
+
+### Asymmetry: producers need bodies, validators do not
+
+The core property is an asymmetry between mining and validation. `buildPoRLocked` calls `bodyAtHeight(H_c)`; if the body has been evicted it returns the defining error *"missing body … node is not a full node, cannot mine."* A pruned node thus cannot construct the proofs and is excluded from block production. **Verification, by contrast, requires only stored headers**: `VerifyPoREntry` recomputes the leaf as $\mathrm{txid}=\mathrm{BLAKE2b}(\texttt{TxBytes})$, exactly the committed Merkle leaf, since the builder sets $\texttt{TxBytes}=\texttt{tx.Serialize()}$ and $\texttt{tx.Hash()}=\mathrm{BLAKE2b}(\texttt{Serialize()})$, checks the branch addresses the expected index, and verifies it against $\mathsf{MerkleRoot}(H_c)$ from the header. No challenged body is ever needed to validate. Consequently a **pruned node remains a full-security validator**: it re-derives $(H_c,\text{idx})$ from $\mathsf{prevHash}$ and the stored $\mathrm{NumTxs}$, confirms $\mathsf{PoRRootOf}(b.\mathrm{PoR})=\mathsf{Header.PoRRoot}$, and rejects any block whose proofs fail, using headers alone.
+
+### Pruning as an intrinsic rule
+
+Pruning in Obscura is not an opt-in mode; there is **no archive configuration**. Every node, miners included, retains block bodies only for a recent window and discards older ones. The pruner in `saveSnapshotLocked` deletes bodies below a floor chosen as the *lower* of two retention requirements, so both are honored simultaneously:
+
+1. the height of the **oldest retained state snapshot** (snapshots are taken every `SnapshotInterval` blocks, with `snapshotsToKeep` $=2$), needed so a restart can restore from a snapshot and a reorg can restore a snapshot at-or-below its fork point and replay forward from retained bodies; and
+2. $\texttt{tip} - W$, guaranteeing the entire PoR-challengeable window is still on disk.
+
+Because PoR challenges never reach below $H-W$ and the pruner never deletes a body at or above $\texttt{tip}-W$, the challengeable set is a subset of the retained set for *every* node, pruning and PoR are consistent **by design**, not by a node-local flag. State that is not body-resident (the spent-output, nullifier, prime, and coin sets, and the accumulators) is disk-backed or folded into snapshots, and snapshots are checked against the tip's committed roots in `verifySnapshotLocked` so a tampered snapshot cannot install bad state.
+
+### Scope
+
+We are precise about what PoR does and does not prove. PoR is a proof-of-**access**: it makes mining-while-pruned impossible and makes serving stale bodies costly per block, but it does not by itself prevent a well-resourced miner from *fetching* challenged bodies on demand rather than storing them (true proof-of-custody, which would entangle the data with each PoW attempt, is outside PoR's scope; PoR proves access, not custody). The header-only validation asymmetry and the pruning/challenge-window coincidence are **proven by construction** in the cited code and exercised by the chain's tests. The specific constants ($W=10{,}000\approx$ two weeks at 120 s blocks, $k=4$) are tunable consensus parameters expressed as adjustable `var`s, and their security margins (for example the probability a partial-data miner evades all $k$ challenges, $\big(1-\text{fraction held}\big)$ per slot compounded) follow directly from the construction.
+
+## Censorship-Resistant P2P
+
+Obscura's networking layer (`pkg/p2p`) is engineered so that no party, including the original operators, can stop, partition, or surveil the network by controlling a small set of nodes or addresses. We describe four mechanisms: seedless self-discovery, eclipse resistance, Dandelion++ transaction-origin privacy, and optional Tor transport. Notation: a node maintains an *address book* $B$ of learned peer addresses, a set of live connections $P$ (with $|P| \le M$, $M = 32$), and an advertised address $a^{\*}$ that it announces to peers.
+
+### Seedless self-discovery
+
+A node bootstraps from any reachable peer, but thereafter depends on no fixed seed. Discovery combines two ingredients. First, **PEX** (peer exchange): on connect a node sends `getaddr` and receives up to 16 sampled book entries via `addr` messages (`p2p.go`), populating $B$ from gossip alone. A `discoveryLoop` (20 s tick) tops connections back up toward $M/2$ by dialing fresh book entries, so the persisted book plus PEX sustain the mesh indefinitely.
+
+Second, and decisively, **vote-based self-address discovery**. The hazard of naive PEX is that nodes advertise their listen address; behind NAT that is an undialable `0.0.0.0`, so peers only ever learn the bootstrap nodes' addresses, yielding a star topology that collapses when the seeds are killed. Obscura instead adopts Bitcoin's "addr-me": each peer echoes the source address it observed us connect *from*. A node accumulates votes over candidate public addresses and adopts $a^{\*} = (\text{IP}, \text{listen port})$ once
+
+$$\#\{\text{peers reporting IP}\} \ge 2,$$
+
+ignoring loopback/unspecified observations (`learnExternalFromPeer`, `discovery.go`). Only routable addresses are stored or gossiped (`isRoutable`, `maybeAddAddr`). Consequently every peer learns every other peer's *reachable* address, the bootstrap nodes become pure convenience, and taking them down does not fragment the network. An explicit `SetAdvertise` (operator override or Tor `.onion`) pins $a^{\*}$ and disables auto-learning. The two-vote threshold is a liveness convenience rather than a security boundary: a Sybil cluster a node dials could forge a false external IP, so the mechanism aids discovery and does not gate security.
+
+### Eclipse resistance
+
+An eclipse adversary tries to fill $B$ and $P$ with addresses it controls so the victim sees only attacker-fed peers (and thus a false chain). Obscura bounds attacker influence at two layers.
+
+*Book-level caps.* Each address is mapped to an **IP group** $g(\cdot)$, a `/16` for IPv4, `/32` for IPv6, and the host string itself for `.onion` (`ipGroup`, `addrbook.go`). The book caps contributions per group at $c = 32$ (`maxPerGroup`) and total size at $4096$. An attacker controlling $k$ distinct groups can therefore seed at most $kc$ addresses regardless of how many IPs it owns; this invariant is re-enforced on disk load, so a poisoned persisted book is sanitized. Failed peers accrue a failure counter and are evicted after $10$ misses, draining dead attacker entries.
+
+*Selection-level diversity.* The decisive defense is `Sample(n)`, which does **not** sample uniformly from $B$ (which an attacker with many addresses in few groups would dominate). It buckets the book by group, shuffles within and across groups, and round-robins one address per group per round. Hence the dial set spans as many distinct networks as the book contains. If the honest book holds $h$ groups and the attacker $k$, the attacker's expected share of any $n$-address sample is bounded by $\min(k,n)/\min(h+k,n)$ rather than by its raw address count, so owning many IPs in a single `/16` buys essentially nothing. Inbound connections are independently capped at $3$ per IP (`maxInboundPerIP`), and banned IPs are rejected. Obscura provides *bounded* eclipse resistance: the construction matches the Bitcoin Core post-2015 defenses (Heilman et al.) and is exercised by `TestEclipseResistance`.
+
+### Dandelion++ transaction-origin privacy
+
+Flooding a transaction immediately leaks its origin: the first node to broadcast is (probabilistically) the sender, linking the transaction to an IP. Obscura implements **Dandelion++** (`dandelion.go`). Each transaction first traverses a private **stem**: a node relays it to exactly one *stem successor* chosen uniformly from its outbound peers and rotated every epoch ($\tau = 60$ s). At each hop the node flips to **fluff** (ordinary flood) with probability $p = 0.30$, giving an expected stem length of $1/p \approx 3.3$ hops, after which the true origin is hidden behind the stem path. Relays carry a small exponential delay (capped at $\text{embargo}/2$) to defeat timing correlation. Robustness against black-holing is provided by an **embargo timer**: if a stemmed transaction is not observed propagating within $8$ s, the node fluffs it itself. A two-generation seen-set ($2 \times 10^5$ ids) bounds memory while preventing re-stemming of already-fluffed transactions, and a successor that equals the upstream peer or is unreachable triggers an immediate fluff (avoiding trivial cycles and stalls). This is the standard Dandelion++ design (Fanti et al., 2018); its anonymity guarantees are conjectural under the paper's adversary model and intentionally degrade gracefully to plain flooding under failure.
+
+### Tor / `.onion` transport
+
+Network-layer anonymity is optional and orthogonal to Dandelion++. The `Dialer` interface abstracts outbound connections; `NewTorDialer` routes every dial through a local SOCKS5 proxy (typically `127.0.0.1:9050`), delegating name resolution to Tor so there is **no local DNS leak** (`transport.go`). In Tor mode the node advertises its `.onion` service and runs **fail-closed** on the address layer: with `onionOnly` set, `maybeAddAddr` drops every non-`.onion` address, so clearnet peers are never mixed into the anonymity set and the `.onion` advertise address is pinned against auto-override.
+
+### Scope
+
+All four mechanisms are implemented and unit-tested live. The eclipse caps and self-discovery thresholds are industry-standard heuristics; Dandelion++ and Tor provide their documented anonymity properties; and the structural invariants (per-group caps, fail-closed onion filtering, embargo liveness) are deterministic and test-verified.
+
+## Trustless Cross-Chain Atomic Swaps
+
+Obscura swaps OBX against external assets peer-to-peer, with **no bridge, no custodian, and no wrapped tokens**. The **settleable** foreign leg is **Nano (XNO)**: the allowlist `config.SettleableAssets = {OBX, XNO}` gates every swap, so any non-XNO foreign offer is rejected at admission by `Offer.Verify` and `Book.Add`. An OBX↔BTC SHA-256 HTLC **design** lives in `pkg/swapd/bitcoin.go` as a script plus `MockBitcoin`, but it is gated off (BTC is not in the settleable-asset allowlist), has no wired orchestrator, and is **not currently takeable**. The XNO leg is **real**: the Nano side is driven through an **operator-configured Nano RPC** (`pkg/swapd/nanorpc.go`), and the full OBX↔XNO swap runs **end-to-end across two independent nodes, moving real XNO on-chain**. Obscura hardcodes no Nano endpoint; `NewNanoRPC` requires an operator-supplied URL, and the selectable presets are `rainstorm` (default, the only one that does `work_generate`), `somenano`, and `nanoto`, or a custom URL (`somenano`/`nanoto` fall back to `rainstorm` for `work_generate`).
+
+### Scriptless 2-of-2 adaptor, no on-chain scripts
+
+The swap is a **scriptless 2-of-2 adaptor signature**, there is no hashlock script on either chain. Two roles each mint **only their own** secret shares (the original single-process flaw, where one caller minted all four secrets and played both sides, is gone):
+
+- **Maker**, the **OBX-side funder** and XNO sweeper. Holds claim share `b` and XNO share `sB`. Funds the OBX `SwapOut` **first**, co-signs the claim, then sweeps the XNO. Its downside (locked OBX) is protected by the SwapOutput's on-chain **refund timelock**.
+- **Taker**, the **XNO-side funder** and OBX claimer. Holds claim share `a` and XNO share `sA`. Locks XNO **only after** it has independently verified the maker's OBX `SwapOut` on-chain. Its downside is protected by **leg ordering** (no XNO leaves until OBX is provably locked).
+
+Both sides derive the **same** public joint keys from public shares alone: the OBX claim key `K = A + B` (rogue-key-safe via per-share proofs-of-possession, defeating key cancellation) and the joint XNO account `(sA + sB)·G`. The **adaptor point** is `T = sA·G`, so the published OBX claim, an *adapted* 2-of-2 signature, necessarily **reveals `sA`** on-chain. The maker combines the revealed `sA` with its `sB` to sweep the XNO. This shared secret on both chains is what makes the two legs **atomic**.
+
+### The six-message session (`pkg/swapsession` over `pkg/swapnet`)
+
+The two parties drive a **six-message** handshake; each message is a flat, length-prefixed binary struct that self-validates the cross-party crypto (PoPs, joint-key derivation, adaptor point) before the receiver acts. `pkg/swapnet` carries these as directed P2P envelopes (`KindInit`…`KindClaimPreSig`), with `KindAbort` and an in-process `ClaimDone` courtesy hint outside the core six:
+
+1. **Init** (Taker → Maker), terms, `SwapID`, and the taker's *public* material: `A`, `Sa`, a PoP of `A`, nonce `Ra`, and the adaptor point `T = Sa`. Carries the OBX amount, the **raw** XNO amount (128-bit `big.Int`, raw overflows `uint64`), and the in-band **fee** both sides must fund/claim/refund with.
+2. **MakerCommit** (Maker → Taker), the maker's public material `B`, `Sb`, PoP of `B`, nonce `Rb`. After Init+MakerCommit both sides derive `K`, `R = Ra+Rb`, and `(sA+sB)·G`.
+3. **Funded** (Maker → Taker), the OBX `SwapOut` is funded and confirmed; identifies it by swap key and unlock height. The taker **re-derives and verifies** the on-chain output (claim key `K`, amount, unlock height, and the atomicity binding `ClaimR=R`, `ClaimT=T`) before locking anything.
+4. **XNOLocked** (Taker → Maker), the taker has locked the real XNO to the joint `(sA+sB)·G` account; carries the lock id. The maker reads the lock's **authoritative** destination account and amount from Nano and refuses to co-sign unless it pays *exactly* the joint key the *exact* agreed amount.
+5. **ClaimRequest** (Taker → Maker), the core hash of the taker's claim tx **plus the taker's own pre-signature half** `ŝ_a = ra + e·a`. The maker verifies `ŝ_a·G == Ra + e·A` before co-signing. Carrying `ŝ_a` is the **anti-griefing** fix: it lets the maker later extract `sA` from the on-chain claim *independently*.
+6. **ClaimPreSig** (Maker → Taker), the maker's half `ŝ_b = rb + e·b`. The maker co-signs **at most one** distinct core hash (the nonce `rb` is committed on-chain in `R` before any claim exists; a second distinct co-sign would leak `b`), persisting the guard durably so it survives a crash.
+
+The taker then aggregates `ŝ_a + ŝ_b`, **adapts** with `sA` into a full signature, verifies it under `K`, and mines the claim, taking the OBX and publishing `sA`. The maker observes the mined claim, **extracts `sA = S_full − ŝ_a − ŝ_b`** from chain data alone (using the verified `ŝ_a` it stored and its own recomputed `ŝ_b`), and sweeps the XNO with `sA+sB`. An optional **ClaimDone** courtesy relay exists but is drained and ignored; an **Abort** at any pre-lock step strands nothing. This independent-recovery path means a malicious taker can no longer freeze the maker's XNO by withholding any post-claim message.
+
+The happy-path message exchange and on-chain settlement are:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant T as Taker (XNO funder, OBX claimer)
+    participant M as Maker (OBX funder, XNO sweeper)
+    participant OBX as OBX chain
+    participant XNO as XNO ledger
+
+    Note over T,M: shares minted independently<br/>K=A+B, T=sA.G==Sa, account=(sA+sB).G
+    T->>M: 1. Init (SwapID, A, Sa, PoP_A, Ra, T=sA.G, OBXamt, raw XNOamt, fee)
+    Note over M: HandleInit: verify amounts+fee+PoP, derive K,R,account
+    M->>T: 2. MakerCommit (B, Sb, PoP_B, Rb)
+    Note over T: HandleMakerCommit: verify PoP_B, derive K, R=Ra+Rb, account
+
+    M->>OBX: Fund SwapOut -> K (refund=B, bind ClaimR=R ClaimT=T, unlock h)
+    OBX-->>M: SwapOut mined/confirmed
+    M->>T: 3. Funded (SwapKey, UnlockHeight)
+    T->>OBX: FindSwapOut + checkSwapOut (K, on-chain amount, window, R, T, refund=B)
+    OBX-->>T: matches
+
+    T->>XNO: Lock real XNO -> joint (sA+sB).G account
+    XNO-->>T: lock id (cemented)
+    T->>M: 4. XNOLocked (lock id)
+    M->>XNO: Confirmed + LockInfo (dest account, amount)
+    XNO-->>M: pays joint key, exact agreed amount
+
+    T->>OBX: BuildClaim (unsigned claim tx -> core hash)
+    T->>M: 5. ClaimRequest (core hash, s_a = ra + e.a)
+    Note over M: verify s_a.G == Ra + e.A; one-coreHash nonce guard; store s_a
+    M->>T: 6. ClaimPreSig (s_b = rb + e.b)
+
+    Note over T: aggregate s_a+s_b, adapt with sA, verify full under K
+    T->>OBX: MineClaim -> takes OBX, publishes S_full (reveals sA)
+    T-->>M: (optional) ClaimDone hint - drained and ignored
+    M->>OBX: FindSwapSpend (scrape published S_full)
+    OBX-->>M: S_full
+    Note over M: extract sA = S_full - s_a - s_b; recover sA+sB
+    M->>XNO: Sweep joint -> maker sweep address
+    XNO-->>M: swept -- swap settled
+```
+
+The full role lifecycle, including the refund and abort branches, is:
+
+```mermaid
+flowchart TB
+    subgraph TAKER["TAKER lane (funds XNO, claims OBX)"]
+        direction TB
+        T0([Take offer]) --> T1[Send Init]
+        T1 --> T2[Recv MakerCommit<br/>derive K, T]
+        T2 --> T3[Recv Funded]
+        T3 --> T4{OBX SwapOut<br/>visible and valid?}
+        T4 -- "mismatch / unclaimable" --> TAB[Send Abort<br/>no XNO locked]
+        TAB --> TABEND([Aborted - nothing at risk])
+        T4 -- "valid" --> T5[Lock real XNO<br/>to sA+sB account]
+        T5 --> T6[Send XNOLocked]
+        T6 --> T7[Build claim<br/>Send ClaimRequest + s_a]
+        T7 --> T8[Recv ClaimPreSig]
+        T8 --> T9[Aggregate + adapt with sA<br/>mine claim, reveal sA]
+        T9 --> TEND([OBX claimed])
+    end
+
+    subgraph MAKER["MAKER lane (funds OBX, sweeps XNO)"]
+        direction TB
+        M0([Offer live]) --> M1[Recv Init]
+        M1 --> M2{Matches own offer?}
+        M2 -- "no" --> MDROP([Dropped - no fund])
+        M2 -- "accept" --> M3[Send MakerCommit]
+        M3 --> M4[Fund OBX SwapOut<br/>timelock = unlock h]
+        M4 --> M5[Send Funded]
+        M5 --> M6[Recv XNOLocked / Abort]
+        M6 --> M7{XNO lock confirmed<br/>to joint key?}
+        M7 -- "no / aborted" --> MREF[Wait timelock<br/>Refund OBX]
+        MREF --> MREFEND([Refunded])
+        M7 -- "confirmed" --> M8[Recv ClaimRequest<br/>verify s_a]
+        M8 --> M9[Co-sign: store s_a<br/>Send ClaimPreSig]
+        M9 --> M10[Scrape on-chain claim<br/>extract sA = S_full - s_a - s_b]
+        M10 --> M11[Sweep real XNO<br/>joint to maker addr]
+        M11 --> MEND([XNO swept - settled])
+    end
+
+    T1 -. Init .-> M1
+    M3 -. MakerCommit .-> T2
+    M5 -. Funded .-> T3
+    T6 -. XNOLocked .-> M6
+    TAB -. Abort .-> M6
+    T7 -. "ClaimRequest (s_a)" .-> M8
+    M9 -. ClaimPreSig .-> T8
+    T9 -. "claim tx -> OBX chain" .-> M10
+```
+
+### Reorg-safe timelocks
+
+Three composed parameters keep the refund/claim windows safe under chain reorganisation, enforced at **three layers** (taker session check, maker fund check, and the consensus fund-path):
+
+- `SwapReorgMargin = 100`, a claim is valid iff `height + SwapReorgMargin ≤ UnlockHeight`.
+- `SwapTimelockWindow = 200`, blocks after funding before the refund branch opens (must exceed the margin, leaving a non-empty claim window).
+- `SwapMinClaimWindow = 50`, minimum open claim window an honest maker must leave for the off-chain lock + co-sign + claim mining.
+
+The invariant `SwapTimelockWindow ≥ SwapReorgMargin + SwapMinClaimWindow` holds by default (`200 ≥ 100 + 50`). Both the maker (at `Fund`) and the taker (at `VerifyFundedAndLock`) refuse a swap whose unlock height leaves no usable claim window, so neither party can be tricked into locking value it can never recover.
+
+### Operational hardening
+
+After the S3 audit, the public RPC `/swaps/take` endpoint is **disabled unless the operator sets `OBX_PUBLIC_SWAPS=1`**, so a public node cannot be driven to fund swaps that **drain an operator's** real balance; the operator's real Nano address was likewise removed from the public Vercel proxy. Take requests now display amounts, not merely asset names.
+
+### Security properties
+
+- **Atomicity.** Both legs settle or neither does. The OBX claim and the XNO sweep are unlocked by the *same* secret `sA` (`T = sA·G`): the taker cannot take OBX without revealing `sA`, and revealing `sA` lets the maker sweep the XNO.
+- **Refund safety.** If the taker never claims, the maker reclaims its OBX at the `SwapTimelockWindow` refund branch. If the maker misbehaves or aborts before the taker locks XNO, the taker has locked nothing. Safe leg ordering guarantees no party commits value before the prior leg is verified on-chain.
+- **Anti-griefing / fund-recovery.** Carrying `ŝ_a` in ClaimRequest lets the maker extract `sA` straight from the on-chain claim with **zero** taker cooperation after co-signing, surviving crash/resume.
+
+*(A source-editable BPMN 2.0 version of the full swap process is provided at `docs/OBX_XNO_atomic_swap.bpmn`.)*
+## Post-Quantum Path
+
+Obscura's classical privacy stack, X25519 stealth addresses, Pedersen commitments, Schnorr spend authority, and a group-of-unknown-order (RSA/class-group) anonymity accumulator, derives all of its hardness from the discrete-logarithm and integer-factorisation problems. A cryptographically relevant quantum computer running Shor's algorithm breaks every one of these primitives simultaneously, and the threat is not deferred to the day such a machine exists: a *harvest-now-decrypt-later* adversary can record the public chain today and de-anonymise it retroactively. This section describes the implemented migration path. We are explicit throughout about what is *proven* and what rests on *standardised cryptography*. The entire PQ stack lives off the default consensus path (it is gated by `tx.Version == 2` and the presence of PQ fields, see `pkg/chain/pqvalidate.go`), so the shipping classical coin's size and speed are unaffected.
+
+**ML-KEM-768 stealth (`pkg/pqstealth`).** Recipient privacy is provided by ML-KEM-768 (Kyber, FIPS 203) from the Go 1.25 standard library `crypto/mlkem`, no external dependency, no trusted setup. A recipient publishes an encapsulation key $ek$ as their PQ view key. A sender encapsulates, obtaining $(ss, ct) \leftarrow \mathrm{Encaps}(ek)$ with $ct$ being $1088$ bytes, attaches $ct$ to the output, and derives all per-output material from $ss$ via a domain-separated BLAKE2b KDF: a $16$-byte detection $\mathit{tag} = \mathrm{KDF}(\text{"tag"}, ss)$, an amount keystream $\mathrm{KDF}(\text{"enc"}, ss)$, and a $16$-byte MAC $= \mathrm{KDF}(\text{"mac"}, ss, \mathit{enc})$. The recipient scans by decapsulating and recomputing the tag in constant time; ML-KEM's implicit rejection guarantees that a ciphertext not meant for the recipient yields a pseudorandom $ss$ whose tag will not match. Because ML-KEM is IND-CCA2 under Module-LWE, for which no quantum attack better than generic lattice reduction is known, recipient linkage and encrypted amounts remain private even against a harvest-now adversary. This is *standard, NIST-standardised cryptography*; the binding of the construction (KDF labelling, MAC-then-detect) is Obscura's own and runs in the live ML-KEM stealth path.
+
+**Lattice/Ajtai commitments (`pkg/pqcommit`).** To replace Pedersen amount commitments we implement a BDLOP-style lattice commitment whose binding rests on the Short Integer Solution (SIS / Ajtai) problem. For public random matrices $A_1 \in \mathbb{Z}_q^{n_1 \times m}$, $A_2 \in \mathbb{Z}_q^{1 \times m}$ (sampled from a fixed BLAKE2b XOF seed by rejection sampling, nothing-up-my-sleeve, no setup), and short randomness $r \in [-B,B]^m$,
+$$ c_1 = A_1 r \bmod q, \qquad c_2 = A_2 r + v \bmod q. $$
+Two short openings of the same $c$ force $A_1(r-r')=0$ with $r-r'$ short, i.e. a SIS solution; hiding follows from the pseudorandomness of $A_1 r, A_2 r$ for short $r$ (leftover-hash / LWE). Crucially the scheme is *additively homomorphic*: $\mathrm{Commit}(v_1;r_1) + \mathrm{Commit}(v_2;r_2) = \mathrm{Commit}(v_1{+}v_2;\, r_1{+}r_2)$, so the existing $\sum_{\text{in}} = \sum_{\text{out}}$ conservation shape carries over, with the caveat that summed randomness must stay under the SIS bound (the `CommitNoBound` aggregation path is for the balance check only, not standalone commitments). The shipped parameters are $q = 2^{32}{-}5$, $n_1=128$, $m=512$, single-limb amounts $v < q$. The live PQ consensus path uses transparent membership and public amounts (see the value model below).
+
+**Hybrid signatures (`pkg/pqsign`).** Spend authority is a belt-and-suspenders hybrid: the on-chain one-time key is $\mathrm{Key} = \mathrm{BLAKE2b}(P \,\|\, \text{dom} \,\| \, R)$, committing both a classical edwards25519 point $P = xG$ and a WOTS+ root $R$. A valid spend must present *both* a Schnorr proof for $P$ and a WOTS+ signature for $R$ over the same message (the transaction `CoreHash`); forging requires defeating both. The output is secure as long as *either* assumption holds, ECDLP today, and the hash-based WOTS+ after Shor breaks the Schnorr half. The WOTS+ instance ($n=32$, $w=16$, $67$ chains, $\sim 2$ KB signatures) uses per-(chain,position) keyed BLAKE2b as its one-way function, so its security reduces to second-preimage/collision resistance, which Grover only weakens quadratically. The Schnorr verifier rejects identity and non-prime-order points on both $P$ and the nonce commitment (audit Finding F1), eliminating cofactor malleability. One note: this WOTS+ is a clean self-contained construction, *not* RFC 8391 byte-compatible. The classical half supplies the non-interactive one-time key, and the hybrid is secure as long as either the ECDLP or the hash-based WOTS+ assumption holds.
+
+**PQ anonymity accumulator (`pkg/pqaccum`).** The global anonymity set is rebuilt as an append-only RFC 6962 Merkle accumulator over BLAKE2b, with leaf/node domain prefixes ($0\text{x}00$/$0\text{x}01$) that close the CVE-2012-2459 second-preimage ambiguity. Its security rests *only* on collision resistance (post-quantum, Grover-halved), with no trusted setup. `Verify` derives path directions from $(\text{Index}, \text{Size})$ rather than trusting attacker-supplied flags, and a streaming mode keeps only $O(\log n)$ peaks with byte-identical roots. We are explicit about the *privacy gap*: a raw Merkle inclusion proof is PQ-*sound* but not zero-knowledge, it reveals the leaf and position, de-anonymising the spend. Accordingly the live PQ consensus path in `pqvalidate.go` uses **transparent membership and public amounts** (the per-output supply-cap check substitutes for a range proof, which is sound because no value is hidden), with nullifiers bound to the full output identity $\mathrm{BLAKE2b}(\text{dom}\,\|\,\text{OutputRef})$ to prevent the WOTS-root-collision freeze (audit Finding 1). The live PQ consensus path uses transparent membership and public amounts, with nullifiers bound to the full output identity.
+
+**Why the STARK is already PQ.** Obscura's transparent zk-STARK membership system carries no public-key assumption: its soundness reduces to the collision resistance of its hash function (FRI over a Merkle-committed trace) and the Fiat–Shamir random oracle. Both survive quantum adversaries up to the quadratic Grover factor, which the parameters already absorb. Thus the proof system is post-quantum by construction: its soundness reduces to hash collision resistance and the Fiat–Shamir random oracle, both of which survive quantum adversaries up to the quadratic Grover factor the parameters already absorb.
+
+## Economics & Incentives
+
+**Atomic units.** One OBX is divided into `AtomicPerCoin = 10¹²` atomic units (12 decimals), matching Monero's piconero granularity. All on-chain amounts are integers in these units.
+
+**Emission schedule.** Obscura uses a Monero-style smooth-decay emission with a perpetual tail. The per-block reward is computed as `reward = remainingSupply >> EmissionShift` with `EmissionShift = 19`, floored at a fixed tail once the cap is reached:
+
+- **Cap before tail:** `MoneySupplyCap = 18,400,000 OBX`.
+- **Initial reward:** `18.4M >> 19 ≈ 35.1 OBX` per block, declining geometrically as the remaining supply shrinks.
+- **Tail emission:** `TailEmissionAtomic = 0.6 OBX` per block, forever, once the smooth reward decays below it, guaranteeing a permanent, non-zero block subsidy to fund security indefinitely.
+
+At the locked `TargetBlockTime = 120 s` (see Consensus), this curve disburses **≈50 % of the supply in ~1.38 years, ~90 % in ~4.6 years, and reaches the tail floor at ~8.1 years (~98.3 % emitted)**. After the tail begins, perpetual issuance is the fixed 0.6 OBX/block, i.e. roughly **0.86 %/year** of the ~18.4 M base, asymptotically declining as a fraction of supply. This mirrors Monero's design philosophy: a front-loaded but multi-year smooth decay followed by a small constant tail, rather than Bitcoin's discontinuous halvings or a hard zero-terminal cap.
+
+**Distribution spans years, not days (mainnet lock).** Because mainnet ignores the devnet block-time overrides, the schedule above is fixed: distribution unfolds over years. *Only* on devnet/testnet (1–2 s blocks) does the whole supply emit in ~weeks (~26 days at 1 s), a deliberately fast iteration mode that the mainnet timing lock prevents from ever reaching a value-bearing chain.
+
+**Incentive pool.** A fixed `IncentivePoolBps = 500` (5 % of each block reward) is diverted at coinbase into a bounded **holding-incentive pool**. This pool is *pre-funded from already-emitted supply*, it does **not** mint new coins beyond the cap-plus-tail schedule above. It is the sole funding source for the Confidential Vaults yield (see the Confidential Vaults section).
+
+**Referral / sharing bonus.** A referral-bonus mechanism is implemented but `ReferralMaxBps = 0` by default, i.e. **disabled**: without an external identity/sybil-binding it is sybil-unsafe, so it is gated off. It is, by construction, **non-inflationary**, like the holding pool, any referral payout would draw from the existing 5 % allocation, never minting supply beyond `MoneySupplyCap` + tail.
+
+**Fees.** Transaction fees are dynamic and replace-by-fee (RBF) capable, and are conserved in-circuit (`a_in = a_out + fee`) so they cannot be used to inflate supply.
+
+## Confidential Vaults (Private Staking)
+
+Obscura ships a built-in, consensus-level **confidential staking primitive**, *Vaults*, that lets a holder earn private yield by time-locking a deposit, with the yield drawn entirely from the bounded incentive pool of the Economics section and therefore **without minting any new supply**.
+
+**Mechanism.** A vault is created by a `VaultOut` transaction output (`pkg/tx`): it locks an amount for a chosen `Term` (in blocks), identified by a 32-byte `VaultKey` and owned by a Schnorr `OwnerKey`. After maturity, i.e. once the chain height reaches `depositHeight + Term`, a `VaultIn` transaction claims principal plus a deterministic yield:
+
+```
+yield = Amount × VaultRateBps(Term) / 10_000
+```
+
+The yield is paid by **decrementing the incentive pool** (funded at `IncentivePoolBps = 500`, 5 % of each block reward), never by fresh issuance. The pool is a finite, pre-emitted reserve, so total staking yield is bounded by accumulated pool inflow, the system cannot over-promise or inflate.
+
+**Lock bounds.** Deposits are governed by the holding-lock parameters: `HoldingMinLock = 10,000` blocks (≈2 weeks at 120 s) and `HoldingMaxLock = 525,600` blocks (≈2 years). Indicative term/rate tiers are 30 d → 1 %, 90 d → 4 %, and 365 d → 20 %, with longer locks yielding proportionally more.
+
+**Confidentiality.** Vault deposits and claims integrate with the confidential-transaction machinery: the consensus layer tracks vaults in a dedicated set (`chain.vaults`) and validates each deposit/claim for maturity, replay (key dedup), and signature validity, while the mempool reserves `vaultin` keys to prevent double-claims. Vault participation reveals no amounts to third parties, a holder earns yield without disclosing stake size, distinguishing Obscura's staking from transparent stake-weighted systems.
+
+**Status.** Vaults are live at the consensus level.
+## Security Analysis & Threat Model
+
+This section states the security properties Obscura targets, the assumptions each rests on, and, rigorously, what is *proven* and what rests on *standard cryptographic assumptions*. The analysis is written for a value-bearing deployment so that every assumption and residual gap is exposed rather than hidden.
+
+### Threat model
+
+We assume a probabilistic-polynomial-time adversary $\mathcal{A}$ who may: (i) submit arbitrary transactions and blocks; (ii) operate miners controlling a hashrate fraction $\alpha < \tfrac12$ of total RandomX power; (iii) run, partition, eclipse, or delay an arbitrary subset of P2P nodes; and (iv) observe the entire public ledger and network metadata. Honest nodes run the validation rules in `pkg/chain` verbatim. We do **not** assume trusted hardware, a trusted setup, or honest majority of *peers* (only of hashrate). We treat a future quantum adversary as out of scope for the default classical construction; the live version-2 post-quantum path addresses it (see *Quantum* below). All probabilistic guarantees are stated against $\mathcal{A}$'s view of a single canonical chain.
+
+### Property 1, Balance / no inflation
+
+*Claim.* No party can spend coins they do not own or create value ex nihilo; total emission is bounded by $\textsf{MoneySupplyCap} = 18.4\text{M}\,\mathrm{OBX}$ (`pkg/config`), with overflow-checked subsidy arithmetic.
+
+*Mechanism & assumptions.* Confidential amounts use Pedersen commitments $C = vH + rG$ over edwards25519. Conservation is enforced per transaction as $\sum_{\text{in}} C - \sum_{\text{out}} C - \text{fee}\cdot H = 0$ via a `commit/conservation` proof, and each output carries a bit-decomposition range proof (`commit/rangeproof.go`, $\textsf{RangeBits}=64$, Schnorr OR per bit). **Proven** (under the discrete-log assumption on edwards25519): the range and conservation proofs are sound, a forged over-mint requires breaking DLOG or the binding of Pedersen commitments. **Note:** the range proof is a bit-decomposition construction; correctness rests on the implementation, hardened through adversarial testing, and binding-soundness holds under the standard discrete-log and Pedersen-binding assumptions.
+
+### Property 2, Double-spend resistance
+
+*Claim.* A coin (transparent UTXO, anonymous ZK coin, or PQ output) can be consumed at most once across the *entire* ledger, including across the transparent⇄anonymous boundary.
+
+*Mechanism.* The transparent path binds each input to a key-image $T = x\cdot U$ with a DLEQ proof; the chain maintains a global spent-tag set, and a Round-2 audit fix unified `c.utxo` and `c.tags` so a coin cannot be spent once transparently and once anonymously (regression in `tests/critical/doublespend/`). The anonymous ZK path reveals a nullifier $N=H(s)$ checked against an unbounded nullifier set; the PQ path uses $N=\textsf{BLAKE2b}(\text{dom}\,\|\,\textsf{OutputRef})$. **Proven** within the consensus engine: double-spend, inflation, unknown-anchor, and tampered-proof transactions are rejected by end-to-end consensus tests (`zk_e2e_test.go`, `pqchain`), and reorg-safety of every spent-set was fixed and regression-tested after an audit found that fork-choice snapshots omitted PQ state. The guarantee is conditional on Property 5 (no honest node accepts a conflicting chain).
+
+### Property 3, Privacy (sender, recipient, amount)
+
+*Recipient & amount privacy* are the strongest claims. Every output uses a Monero-style dual-key **stealth address** ($P=H_s(rA)G+B$), so a long-term address never appears on chain; amounts are hidden by the Pedersen commitments above. These rest on the DDH/DLOG hardness of edwards25519 and are *industry-standard* (the Monero/RingCT design), implemented from scratch here.
+
+*Sender privacy* is the most nuanced and we are deliberate about its current state:
+- The **transparent confidential** path (live) hides amount and recipient and reveals the sender-to-output link (the spent `OutputRef`), the appropriate profile when sender unlinkability is not required.
+- The **anonymous (`anonspend`) one-of-many** proof hides the spender among a ring via two linked rings sharing one secret index $l$; and the **zk-STARK anon-spend** (`pkg/stark`, live) binds membership in a Poseidon commitment tree, the nullifier ($N=H(s)$), and confidential amounts (range and balance in-field, trace-masked) into a single proof, giving full sender-hiding with epoch-sharded fixed-depth scaling for unlimited coins. The STARK is a *transparent, hash-based* IOP (Goldilocks field, FRI, Fiat–Shamir) with **~112-bit soundness** ($\textsf{ZKQueries}=48$ queries at about 2 bits each plus $\textsf{friGrindBits}=16$), per the proximity-gap results recorded in `chainparams.go`, with a conservative provable floor below it.
+
+*Network-level privacy.* Origin-hiding uses Dandelion++ (`pkg/p2p/dandelion.go`): a per-epoch stem successor, ~3-hop stem, and an 8 s embargo fail-safe against black-holing, with optional Tor. This is a metadata-privacy defence following the industry-standard Dandelion++ design.
+
+### Property 4, Censorship resistance
+
+Permissionless ASIC-resistant RandomX (KAT-verified Monero compatibility) is the consensus PoW, shipped by default in the un-tagged binary; the fast `vm-randomx-style` prototype backend (opt-in via `-tags protopow`) serves local and development networks. Either way, anyone can mine and include transactions. **PoR mining** (`pkg/block/por.go`) additionally forces miners to be full nodes via 4 per-block proof-of-retrievability challenges bound into the PoW preimage. The documented scope is that this proves *access* rather than *custody*. Censorship resistance is therefore *economic/heuristic*, conditioned on $\alpha<\tfrac12$, not cryptographically proven.
+
+### Property 5, Finality
+
+Obscura offers **probabilistic finality** only (Nakamoto consensus). The heaviest-cumulative-work chain wins (`forkchoice.go`); a $k$-deep block is reversible with probability decaying exponentially in $k$ for $\alpha<\tfrac12$. There is **no fast/economic finality gadget**. Difficulty uses an LWMA retarget ($\textsf{TargetBlockTime}=120$ s), and load-testing surfaced (and devnet-mitigated) an LWMA oscillation failure mode under variable hashrate, an honest reliability caveat.
+
+### Assumptions summary and residual risks
+
+Security rests on: (a) **DLOG/DDH on edwards25519** (ownership, key-images, stealth, range/conservation, one-of-many), *classical only*; (b) **collision/2nd-preimage resistance of BLAKE2b and Poseidon**; (c) the **conjectured FRI/STARK soundness**; (d) **honest-hashrate majority** ($\alpha<\tfrac12$) for liveness, finality, and censorship resistance; and (e) heuristic P2P assumptions for metadata privacy (eclipse/addrbook hardening with per-/16 caps and diversity sampling). Two boundaries are stated plainly. The default spend path is classical: Shor breaks every edwards25519 relation and the unknown-order accumulator, with harvest-now-decrypt-later exposure, which the implemented post-quantum track (WOTS+ hybrid keys, ML-KEM stealth, Merkle accumulator) is built to migrate, its lattice parameters set in the shipped PQ profile. Every "proven" claim above is proven relative to the implemented consensus checks and extensive adversarial testing.
+
+## Implementation & Evaluation
+
+**Pure Go, CGO-free.** The entire stack, class-group/RSA accumulators, the from-scratch zk-STARK engine, Poseidon/Jive arithmetization, Pedersen commitments and range proofs, the P2P layer, the swap engine, and the PoW harness, is implemented in pure Go with `CGO_ENABLED=0`. There are no native C dependencies on any build path (canonical RandomX is the pure-Go P2Pool go-randomx port, so even the default build stays CGO-free). This yields a reproducible, cross-compilable codebase and a single self-contained artifact per target.
+
+**Single static binaries.** Each platform build produces one statically-linked `obscura-node` binary that contains node, miner, wallet, RPC server, and swap daemon, no runtime dependencies, no separate frontend service.
+
+**Desktop application (`--ui`).** Running `obscura-node --ui` launches a turnkey desktop app: the binary embeds the website assets and a local `/api` proxy and opens them in a borderless Chrome `--app` window, so a non-technical user gets a wallet/explorer GUI with no third-party frontend dependencies. (Turnkey mode runs the same default canonical RandomX backend as any other build: it does not relax the prototype-PoW start guard, which requires `OBX_ALLOW_PROTOTYPE_POW=1` on the opt-in `-tags protopow` backend; see Consensus.)
+
+**Per-OS packaging and checksums.** `scripts/package-desktop.sh` emits per-OS bundles, Windows `.exe`, a macOS `.app`, and a Linux tarball, together with a `SHA256SUMS.txt` manifest, and ad-hoc-signs the macOS bundle. `website/download.html` serves the per-OS downloads alongside install instructions and checksum-verification steps. The public website is a static site on Vercel (`obscura-blush.vercel.app`) backed by a read-only RPC proxy that whitelists safe endpoints; the operator node itself is not publicly exposed.
+
+**Seedless discovery and networking.** After an initial bootstrap from `DefaultSeeds` (or `OBX_SEEDS`), nodes self-organize without further reliance on seeds: peer-exchange (`msgGetAddr`/`msgAddr`) discovers new peers, a Bitcoin-style vote-based "addr-me" mechanism discovers a node's own external address, and a `discoveryLoop` keeps the connection count topped up. Eclipse resistance is provided by per-/16 address-group caps, a self-dial fix, and per-connection soft-banning; Dandelion++ stem/fluff propagation and optional Tor transport (`--tor-proxy`/`--onion-address`) round out origin-privacy.
+
+**Multi-node network and snapshot sync.** A multi-node network runs across nodes (binary-only deployment), and the OBX↔XNO atomic swap has been proven end-to-end across two of them with real XNO settled. New nodes catch up via **snapshot sync**: a serving node streams a recent state snapshot rather than forcing a full from-genesis replay. State is checkpointed every `SnapshotInterval = 200` blocks and on `SIGTERM` (a shutdown snapshot), with `snapshotsToKeep = 2`; the shutdown snapshot specifically fixed a restart pathology where a node slow-replayed the whole chain and appeared to hang. Pruning is intrinsic: bodies are retained only over `[tip − PoRWindow, tip]` for every node, miners included.
+## Engineering Frontier
+
+Obscura is engineered as serious privacy money. The following describes the live cryptographic stack and the parameters that can be tuned as adoption scales.
+
+**From-scratch cryptographic stack.** Every cryptographic primitive (the class-group/RSA accumulator, the Poseidon/Jive commitment-tree accumulator, the zk-STARK prover/verifier and FRI low-degree test, the nullifier AIR, the Pedersen/range-proof confidential-amount engine, and the adaptor-signature swap logic) is implemented from scratch in pure Go. Soundness parameters (the ≈112-bit FRI soundness under the proximity-gap results, ≈49-bit under the conservative provable bound) are set deliberately, with the wide Poseidon sponge giving 256-bit commitment-tree nodes at the targeted ≈2¹²⁸ collision resistance. The stack is implemented and adversarially tested, and continues to harden as adoption scales.
+
+**Hardening, complete.** The S1 to S5 hardening fixes (download-page checksums, real seeds, swap-take gating, operator-address removal, packaging signing) are landed.
+
+- **RandomX PoW.** RandomX is the consensus proof-of-work, KAT-verified against Monero vectors and shipped by default in the un-tagged binary; the fast `vm-randomx-style` prototype backend (opt-in via `-tags protopow`) serves local and development networks.
+- **Merged shielded spend and swaps.** The fully-unlinkable shielded spend (recipient-secret nullifiers $\mathrm{nf} = H(\mathrm{nk}, \rho)$, full sender-to-spend unlinkability) with confidential amounts is the live consensus confidential path: `validateCZKSpendsLocked` verifies it with `VerifyCnfSpend`, the address publishes the recipient nullifier-key $\mathrm{pk} = H(\mathrm{nk},0)$, and an end-to-end adversarial test proves a sender cannot reclaim or link a note it pays. OBX↔XNO is settleable end-to-end (`SettleableAssets = {OBX, XNO}`) with reorg-safe claim/refund windows, maker refund-on-stall, and crash-resume; public `/swaps/take` is gated behind `OBX_PUBLIC_SWAPS=1`.
+- **Distribution integrity.** Distributed bundles carry SHA-256 checksums and an ad-hoc macOS signature, verifiable from the download page.
+
+**Tunable parameters.** Several consensus parameters are adjustable as adoption scales: the anonymity pool size (`PoolSize`), the epoch-shard depth (`ZKDepth`), and the partition-recovery and reorg-bound windows. The post-quantum building blocks (ML-KEM-768 stealth, hybrid Schnorr plus WOTS+ ownership, the BLAKE2b PQ accumulator) run today as a version-2 transaction kind.
+## References
+
+[1] S. Nakamoto. *Bitcoin: A Peer-to-Peer Electronic Cash System.* 2008. https://bitcoin.org/bitcoin.pdf
+
+[2] N. van Saberhagen. *CryptoNote v 2.0.* 2013. https://cryptonote.org/whitepaper.pdf
+
+[3] S. Noether. *Ring Signature Confidential Transactions for Monero.* Cryptology ePrint Archive, Report 2015/1098, 2015.
+
+[4] S. Noether, B. Goodell. *Triptych: Logarithmic-Sized Linkable Ring Signatures with Applications.* In *Data Privacy Management, Cryptocurrencies and Blockchain Technology (DPM/CBT)*, LNCS 12484, 2020.
+
+[5] E. Ben-Sasson, A. Chiesa, C. Garman, M. Green, I. Miers, E. Tromer, M. Virza. *Zerocash: Decentralized Anonymous Payments from Bitcoin.* In *IEEE Symposium on Security and Privacy (S&P)*, 2014.
+
+[6] S. Bowe, A. Gabizon, I. Miers. *Scalable Multi-party Computation for zk-SNARK Parameters in the Random Beacon Model.* Cryptology ePrint Archive, Report 2017/1050, 2017. (Zcash Sapling.)
+
+[7] J. Groth. *On the Size of Pairing-Based Non-interactive Arguments.* In *EUROCRYPT*, LNCS 9666, 2016.
+
+[8] T. E. Jedusor. *Mimblewimble.* 2016. (Followed by A. Poelstra, *Mimblewimble*, 2016.)
+
+[9] B. Bünz, J. Bootle, D. Boneh, A. Poelstra, P. Wuille, G. Maxwell. *Bulletproofs: Short Proofs for Confidential Transactions and More.* In *IEEE Symposium on Security and Privacy (S&P)*, 2018.
+
+[10] E. Ben-Sasson, I. Bentov, Y. Horesh, M. Riabzev. *Scalable, Transparent, and Post-Quantum Secure Computational Integrity (STARKs).* Cryptology ePrint Archive, Report 2018/046, 2018.
+
+[11] E. Ben-Sasson, I. Bentov, Y. Horesh, M. Riabzev. *Fast Reed–Solomon Interactive Oracle Proofs of Proximity (FRI).* In *ICALP*, LIPIcs 107, 2018.
+
+[12] E. Ben-Sasson, D. Carmon, Y. Ishai, S. Kopparty, S. Saraf. *Proximity Gaps for Reed–Solomon Codes.* In *FOCS*, 2020.
+
+[13] StarkWare. *ethSTARK Documentation.* Cryptology ePrint Archive, Report 2021/582, 2021.
+
+[14] L. Grassi, D. Khovratovich, C. Rechberger, A. Roy, M. Schofnegger. *Poseidon: A New Hash Function for Zero-Knowledge Proof Systems.* In *USENIX Security Symposium*, 2021.
+
+[15] C. Bouvier, A. Canteaut, L. Perrin, et al. *Anemoi / Jive: Arithmetization-Oriented Hash Functions.* In *CRYPTO*, LNCS 14083, 2023.
+
+[16] D. Boneh, B. Bünz, B. Fisch. *Batching Techniques for Accumulators with Applications to IOPs and Stateless Blockchains.* In *CRYPTO*, LNCS 11692, 2019.
+
+[17] B. Wesolowski. *Efficient Verifiable Delay Functions.* In *EUROCRYPT*, LNCS 11478, 2019.
+
+[18] J. Buchmann, S. Hamdy. *A Survey on IQ Cryptography.* In *Public-Key Cryptography and Computational Number Theory*, 2001. (Imaginary quadratic class groups.)
+
+[19] J. Camenisch, A. Lysyanskaya. *Dynamic Accumulators and Application to Efficient Revocation of Anonymous Credentials.* In *CRYPTO*, LNCS 2442, 2002.
+
+[20] G. Fanti, S. B. Venkatakrishnan, S. Bakshi, B. Denby, S. Bhargava, A. Miller, P. Viswanath. *Dandelion++: Lightweight Cryptocurrency Networking with Formal Anonymity Guarantees.* In *ACM SIGMETRICS / POMACS*, 2018.
+
+[21] A. Poelstra. *Scriptless Scripts.* 2017. (Adaptor signatures.)
+
+[22] G. Maxwell, A. Poelstra, Y. Seurin, P. Wuille. *Simple Schnorr Multi-Signatures with Applications to Bitcoin.* In *Designs, Codes and Cryptography*, 2019. (Schnorr/adaptor foundations.)
+
+[23] TierNolan et al. *Atomic Cross-Chain Trading.* Bitcoin Wiki, 2013. (HTLC atomic swaps.)
+
+[24] R. Avanzi, J. Bos, L. Ducas, E. Kiltz, T. Lepoint, V. Lyubashevsky, J. M. Schanck, P. Schwabe, G. Seiler, D. Stehlé. *CRYSTALS-Kyber Algorithm Specifications.* NIST PQC Round 3, 2021.
+
+[25] National Institute of Standards and Technology. *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard (ML-KEM).* 2024.
+
+[26] C. Baum, I. Damgård, V. Lyubashevsky, S. Oechsner, C. Peikert. *More Efficient Commitments from Structured Lattice Assumptions (BDLOP).* In *SCN*, LNCS 11035, 2018.
+
+[27] L. Reyzin, S. Yakoubov. *Efficient Asynchronous Accumulators for Distributed PKI (Merkle accumulators).* In *SCN*, LNCS 9841, 2016.
+
+[28] B. Laurie, A. Langley, E. Kasper. *Certificate Transparency.* RFC 6962, IETF, 2013. (Domain-separated Merkle trees.)
+
+[29] L. Lamport. *Constructing Digital Signatures from a One-Way Function.* Technical Report SRI-CSL-98, 1979; and A. Hülsing, *W-OTS+, Shorter Signatures for Hash-Based Signature Schemes*, in *AFRICACRYPT*, LNCS 7918, 2013.
+
+[30] A. Biryukov, D. Khovratovich. *Equihash / Argon2 and Memory-Hard Functions*; and tevador, *RandomX*, 2019. (ASIC-resistant proof of work.)
+
+---</script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+  window.MathJax = {
+    tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+    startup: { typeset:false }
+  };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+  <script>
+    (function () {
+      var raw = document.getElementById('source').textContent;
+      // 1) protect math spans from Markdown
+      var store = [];
+      function stash(re, open, close) {
+        raw = raw.replace(re, function (m, inner) {
+          store.push(open + inner + close);
+          return '@@MATH' + (store.length - 1) + '@@';
+        });
+      }
+      stash(/\$\$([\s\S]+?)\$\$/g, '\\[', '\\]');   // display first
+      stash(/\$([^\n$]+?)\$/g, '\\(', '\\)');        // then inline
+      // 2) markdown -> html
+      marked.setOptions({ gfm:true, breaks:false });
+      var html = marked.parse(raw);
+      // 3) restore math
+      html = html.replace(/@@MATH(\d+)@@/g, function (m, i) { return store[+i]; });
+      // 4) split front matter (everything up to the first <hr>) from the numbered body
+      var parts = html.split(/<hr\s*\/?>/i);
+      var front = parts.shift();
+      var body = parts.join('<hr>');
+      // mark a References heading as unnumbered
+      body = body.replace(/<h2([^>]*)>\s*References\s*<\/h2>/i, '<h2$1 class="unnumbered refs">References</h2>');
+      document.getElementById('root').innerHTML =
+        '<div class="front">' + front + '</div><div class="body">' + body + '</div>';
+      // 5) BPMN/process diagrams: turn ```mermaid code blocks into mermaid figures.
+      //    marked emits <pre><code class="language-mermaid">; mermaid wants the DECODED
+      //    graph text (textContent decodes the HTML entities marked escaped), in a
+      //    <pre class="mermaid"> host. Render after the DOM is in place.
+      (function renderMermaid(){
+        var blocks = document.querySelectorAll('pre code.language-mermaid');
+        for (var i = 0; i < blocks.length; i++) {
+          var code = blocks[i];
+          var pre = document.createElement('pre');
+          pre.className = 'mermaid';
+          pre.textContent = code.textContent;          // decoded graph source
+          code.parentNode.replaceWith(pre);
+        }
+        function run(){
+          if (!window.mermaid) { setTimeout(run, 120); return; }
+          try {
+            mermaid.initialize({ startOnLoad:false, theme:'neutral', securityLevel:'loose',
+              flowchart:{ useMaxWidth:true, htmlLabels:true, curve:'basis' },
+              sequence:{ useMaxWidth:true } });
+            mermaid.run({ querySelector:'pre.mermaid' });
+          } catch (e) { /* leave the source visible if mermaid fails */ }
+        }
+        if (document.querySelector('pre.mermaid')) run();
+      })();
+      // 6) typeset math once loaded
+      function typeset(){ if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise(); else setTimeout(typeset, 120); }
+      typeset();
+    })();
+  </script>
+</body>
+</html>

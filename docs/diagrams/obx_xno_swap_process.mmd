@@ -1,0 +1,25 @@
+flowchart TD
+    START([Taker takes OBX/XNO offer]) --> INIT[Taker -> Init]
+    INIT --> MC[Maker HandleInit -> MakerCommit]
+    MC --> FUND[Maker Fund OBX SwapOut to K<br/>refund=B, bind R,T, unlock h]
+    FUND --> FUNDED[Maker -> Funded]
+    FUNDED --> VERIFY{Taker: OBX SwapOut on-chain<br/>and valid? K, amount, window, R, T}
+    VERIFY -- mismatch / unclaimable --> TABORT[Taker Abort<br/>no XNO locked]
+    TABORT --> ABEND([Aborted - nothing at risk])
+    VERIFY -- not visible yet --> VERIFY
+    VERIFY -- valid --> LOCK[Taker Lock real XNO<br/>to joint sA+sB account]
+    LOCK --> LOCKED[Taker -> XNOLocked]
+    LOCKED --> CONF{Maker: lock pays joint key<br/>exact agreed amount?}
+    CONF -- not cemented yet --> CONF
+    CONF -- wrong account/amount or stalled --> REFUNDW[Wait UnlockHeight<br/>Maker Refund OBX via timelock]
+    REFUNDW --> REFEND([Refunded])
+    CONF -- confirmed --> CLAIMREQ[Taker BuildClaim -> ClaimRequest core hash + s_a]
+    CLAIMREQ --> COSIGN{Maker verify s_a, nonce guard}
+    COSIGN -- bad s_a / second core hash --> REFUNDW
+    COSIGN -- ok: store s_a --> PRESIG[Maker -> ClaimPreSig s_b]
+    PRESIG --> FINAL[Taker aggregate s_a+s_b<br/>adapt with sA, verify under K]
+    FINAL --> MINE[Taker mine OBX claim<br/>takes OBX, publishes S_full reveals sA]
+    MINE --> SCRAPE[Maker scrape on-chain claim<br/>extract sA = S_full - s_a - s_b]
+    SCRAPE --> SWEEP[Maker Sweep real XNO<br/>joint -> maker address]
+    SWEEP --> DONE([XNO swept - swap settled])
+    MINE -. window closes with no claim .-> REFUNDW

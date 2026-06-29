@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Docs — Obscura (OBX)</title>
+<meta name="description" content="Obscura documentation: privacy model, accumulator, wallet CLI reference, node, mining, cross-chain swaps, RPC, tokenomics, and the whitepaper." />
+<meta name="theme-color" content="#07070d" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%230b0b14%27/%3E%3Cpath%20d%3D%27M4%2027%20L9%2023%20L8%2016%20L11%206%20L14%2012%20L20%2011%20L27%205%20L24%2013%20L28%2016%20L23%2018%20L24%2024%20L19%2021%20L15%2026%20L11%2022%20Z%27%20fill%3D%27none%27%20stroke%3D%27%238b6cff%27%20stroke-width%3D%271.9%27%20stroke-linejoin%3D%27round%27%20stroke-linecap%3D%27round%27/%3E%3Ccircle%20cx%3D%2722%27%20cy%3D%2712%27%20r%3D%272%27%20fill%3D%27%232b9bff%27/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<style>
+  /* Scoped, prominent red danger callout (builds on the shared .callout/.callout.warn styles) */
+  .callout.danger {
+    border: 1px solid rgba(255,77,77,.55);
+    border-left: 4px solid #ff4d4d;
+    background: rgba(255,77,77,.10);
+  }
+  .callout.danger strong { color: #ff8585; }
+  .callout.danger .warn-head {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; color: #ff8585; margin-bottom: 6px;
+  }
+  .callout.danger .warn-head .ic { font-size: 18px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="/">
+      <svg class="logo" viewBox="0 0 32 32"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#8b6cff" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="3.6" fill="#2b9bff" opacity="0.30"/><circle cx="22" cy="12" r="2" fill="#2b9bff"/></svg>
+      <b>Obscura</b><span class="tick">OBX</span>
+    </a>
+    <button class="nav-toggle" aria-label="Menu">☰</button>
+    <div class="nav-links">
+      <a href="/#how">How it works</a>
+      <a href="/#features">Features</a>
+      <a href="/#tokenomics">Tokenomics</a>
+      <a class="nav-cta" href="/">← Home</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="docs-layout">
+    <!-- sidebar -->
+    <aside class="docs-side">
+      <div class="grp"><h6>Protocol</h6>
+        <a href="#overview">Overview</a>
+        <a href="#privacy">Privacy model</a>
+        <a href="#accumulator">The accumulator</a>
+        <a href="#transactions">Transactions</a>
+        <a href="#network">Network privacy</a>
+      </div>
+      <div class="grp"><h6>Run it</h6>
+        <a href="#quickstart">Quickstart</a>
+        <a href="#wallet">Wallet CLI</a>
+        <a href="#node">Node</a>
+        <a href="#mining">Mining</a>
+        <a href="#swaps">Atomic swaps</a>
+      </div>
+      <div class="grp"><h6>Reference</h6>
+        <a href="#fees">Fees &amp; RBF</a>
+        <a href="#security">Security</a>
+        <a href="#tokenomics-doc">Tokenomics</a>
+        <a href="#rpc">RPC API</a>
+        <a href="#whitepaper">Whitepaper</a>
+        <a href="#faq">FAQ</a>
+      </div>
+    </aside>
+
+    <!-- content -->
+    <main class="docs-main">
+      <h1>Obscura documentation</h1>
+      <p class="muted">Everything you need to understand and run Obscura (OBX), a privacy cryptocurrency with a global anonymity set.</p>
+
+      <h2 id="overview">Overview</h2>
+      <p>Obscura is a proof-of-work privacy coin that replaces ring signatures with a <strong>transparent zk-STARK membership proof over a chain-wide commitment tree and class-group accumulator</strong>. Instead of hiding a spend among a small ring of decoys, Obscura proves in zero knowledge that the spent output is a member of the set of <em>all</em> outputs, so the anonymity set is the whole chain and grows with adoption.</p>
+      <ul>
+        <li><strong>Ticker:</strong> OBX · <strong>Decimals:</strong> 12 (1 OBX = 10¹² atomic units)</li>
+        <li><strong>Block time:</strong> 120s · <strong>Difficulty:</strong> LWMA · <strong>PoW:</strong> memory-hard VM (memory-hard cache + per-nonce scratchpad + randomized int/float VM) with an epoch PoW seed</li>
+        <li><strong>Emission:</strong> smooth decreasing reward with a perpetual ~0.6 OBX/block tail; soft cap ≈ 18.4M OBX</li>
+        <li><strong>Stack:</strong> full node, CLI wallet, standalone miner — pure Go, CGO-free, single static binaries</li>
+      </ul>
+
+      <h2 id="privacy">Privacy model</h2>
+      <p>Four independent layers hide the four things a transaction would otherwise reveal:</p>
+      <ul>
+        <li><strong>Recipient → stealth addresses.</strong> Each output gets a fresh one-time key <code>P = H(r·A)·G + B</code> with tx key <code>R = r·G</code>. Your long-term address never appears on chain. A 1-byte view tag accelerates scanning.</li>
+        <li><strong>Amount → confidential transactions.</strong> Values live in Pedersen commitments <code>C = a·G + v·H</code>; bit-decomposition range proofs prevent negatives/overflow and a conservation proof shows inputs = outputs + fee.</li>
+        <li><strong>Sender → global anonymity set.</strong> A transparent zk-STARK proves the spent output is a member of the class-group accumulator of all outputs, with a recipient-secret nullifier (nf=H(nk,rho)) preventing double-spends and binding ownership so a sender can neither steal nor link the spend.</li>
+        <li><strong>Origin → network layer.</strong> Optional Tor transport and Dandelion++ stem/fluff relay hide which node a transaction came from.</li>
+      </ul>
+      <div class="callout">Spends are <strong>sound</strong>: an ownership proof and a value-equality proof against the UTXO set close theft, inflation, and double-spend independently of the anonymity machinery.</div>
+
+      <h2 id="accumulator">The accumulator (no trusted setup)</h2>
+      <p>The membership accumulator runs over a <strong>group of unknown order</strong>, with two interchangeable backends:</p>
+      <ul>
+        <li><strong>Imaginary-quadratic class group</strong> — needs <em>no</em> trusted setup whatsoever (no ceremony, no toxic waste).</li>
+        <li><strong>RSA-2048</strong>, a faster nothing-up-my-sleeve modulus (the RSA challenge number), offered as a transparent alternative backend.</li>
+      </ul>
+      <p>It uses Boneh–Bünz–Fisch techniques: add-only accumulation, Wesolowski proofs of exponentiation (PoE), NI-PoKE2, and hash-to-prime. Membership proofs are <strong>constant-size</strong> and verify in <strong>O(log)</strong> work regardless of how large the set grows.</p>
+
+      <h2 id="transactions">Transactions</h2>
+      <p>A transaction can carry transparent inputs, anonymous inputs, and swap legs, with confidential outputs. Coins are accumulated into an epoch-sharded commitment tree of fixed proof depth; an anonymous spend proves membership against a recent commitment-tree root via a transparent zk-STARK, so verification cost is bounded and there is no decoy selection to leak.</p>
+      <p>Fork choice is most-cumulative-work with a lowest-hash tie-break, bounded reorg depth, and snapshot/replay reorgs. Median-time-past guards timestamps.</p>
+
+      <h2 id="network">Network privacy</h2>
+      <p>Peers gossip over a hardened protocol (magic + version handshake, read/write deadlines, peer and per-IP caps, ban scoring, PEX auto-discovery).</p>
+      <ul>
+        <li><strong>Dandelion++</strong> relays new transactions through a private "stem" before "fluffing" them to the whole network, hiding the origin.</li>
+        <li><strong>Tor</strong> transport routes P2P over a SOCKS5 proxy and can advertise an <code>.onion</code> address, with fail-closed onion-only peer handling.</li>
+      </ul>
+
+      <h2 id="quickstart">Quickstart</h2>
+      <p>Build all three binaries (requires Go 1.24+):</p>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">go build -o bin/obscura-node   ./cmd/obscura-node</span>
+<span class="cmd">go build -o bin/obscura-wallet ./cmd/obscura-wallet</span>
+<span class="cmd">go build -o bin/obscura-miner  ./cmd/obscura-miner</span></pre></div>
+      <p>Create an encrypted wallet, run a mining node, and send a confidential payment:</p>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmt"># 1. create an encrypted wallet (prints a Base58 address)</span>
+<span class="cmd">./bin/obscura-wallet new --passphrase "your secret"</span>
+
+<span class="cmt"># 2. start a node that mines to that address</span>
+<span class="cmd">./bin/obscura-node --mine --mine-address &lt;your-address&gt;</span>
+
+<span class="cmt"># 3. check status &amp; balance</span>
+<span class="cmd">./bin/obscura-wallet status</span>
+<span class="cmd">./bin/obscura-wallet balance</span>
+
+<span class="cmt"># 4. send (auto fee) and back up your seed phrase</span>
+<span class="cmd">./bin/obscura-wallet send --to &lt;addr&gt; --amount 5 --fee auto</span>
+<span class="cmd">./bin/obscura-wallet mnemonic</span></pre></div>
+      <div class="callout warn">Back up your seed phrase <em>and</em> remember your passphrase — there is no recovery if you lose either.</div>
+
+      <h2 id="wallet">Wallet CLI reference</h2>
+      <p>All commands accept <code>--wallet FILE</code> (default <code>~/.obscura/wallet.seed</code>) and, where they talk to a node, <code>--node URL</code>. Encrypted wallets need <code>--passphrase</code> or the <code>OBSCURA_WALLET_PASSPHRASE</code> environment variable.</p>
+
+      <h3>Keys &amp; addresses</h3>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">new</span>         [--passphrase P]              create a wallet (encrypts the seed if P given)
+<span class="cmd">mnemonic</span>                                  print the 24-word seed phrase
+<span class="cmd">restore</span>     --mnemonic "words..."         recreate a wallet from a phrase
+<span class="cmd">address</span>                                   print your Base58 address
+<span class="cmd">subaddress</span>                                generate a fresh unlinkable subaddress
+<span class="cmd">uri</span>         [--amount X] [--label L]      print a payment URI (for QR codes)
+<span class="cmd">viewkey</span>                                   export a view key (watch-only)
+<span class="cmd">watch</span>       --viewkey HEX                 create a watch-only wallet
+<span class="cmd">passwd</span>      --new-passphrase NEW          set / rotate the passphrase</pre></div>
+
+      <h3>Balance &amp; spending</h3>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">balance</span>     [--node URL]                  show spendable balance
+<span class="cmd">outputs</span>     [--node URL]                  list unspent outputs (coin control)
+<span class="cmd">send</span>        --to ADDR --amount OBX [--fee OBX|auto]
+<span class="cmd">sweep</span>       --to ADDR [--fee OBX]         send the entire balance
+<span class="cmd">history</span>     [--node URL]                  list outgoing payments
+<span class="cmd">bump</span>        --txid T --fee OBX            replace-by-fee a stuck payment</pre></div>
+
+      <h3>Payment proofs</h3>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">proof</span>       --txid T                      prove you RECEIVED a payment
+<span class="cmd">proofsent</span>   --txid T                      prove you PAID a payment
+<span class="cmd">checkproof</span>  --address ADDR --proof HEX    verify a proof (offline)</pre></div>
+
+      <h3>Network &amp; swaps</h3>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">status</span>      [--node URL]                  node / chain status
+<span class="cmd">feerate</span>     [--node URL]                  suggested fee-per-byte
+<span class="cmd">mempool</span>     [--node URL]                  pending-tx stats
+<span class="cmd">peers</span>       [--node URL]                  connected peers
+<span class="cmd">offers</span>      [--node URL]                  list cross-chain swap offers (OBX<->XNO live; OBX<->BTC planned/disabled)
+<span class="cmd">offer</span>       --give-asset A --give-amount N --get-asset B --get-amount M</pre></div>
+
+      <h2 id="node">Running a node</h2>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">./bin/obscura-node \
+  --datadir ~/.obscura \
+  --p2p 0.0.0.0:18080 \
+  --rpc 127.0.0.1:18081 \
+  --seeds host1:18080,host2:18080 \
+  --mine --mine-address &lt;addr&gt; \
+  --tor-proxy 127.0.0.1:9050 --onion-address &lt;you&gt;.onion</span></pre></div>
+      <p>The node serves the chain, mempool, P2P gossip, JSON-RPC, the swap order book, and external-miner endpoints. <code>--coinbase-maturity</code> is a network parameter all nodes must share (lower it only for devnets).</p>
+
+      <h2 id="mining">Mining</h2>
+      <p>Two ways to mine. Built into the node with <code>--mine</code>, or with the standalone miner against any node's RPC:</p>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">./bin/obscura-miner --node http://127.0.0.1:18081 --address &lt;your-address&gt;</span></pre></div>
+      <p>The miner fetches a block template (<code>/blocktemplate</code>), grinds the memory-hard VM PoW, and submits solved blocks (<code>/submitblock</code>), cancelling stale work when the chain advances. This decouples mining from running a node and lets pools or third-party software participate.</p>
+
+      <div class="callout danger">
+        <div class="warn-head"><span class="ic" aria-hidden="true">⚠</span> Default: auto-liquid mining rewards (ON by default)</div>
+        <p>By default, a mining node <strong>automatically posts cross-chain swap offers</strong> selling its OBX mining rewards for XNO into the public order book, at the prevailing market/seed rate. This bootstraps liquidity and establishes a price for OBX. It <strong>posts offers</strong> — it does not auto-execute swaps and does not guarantee they fill.</p>
+        <ul>
+          <li><strong>Privacy.</strong> Obscura is a privacy coin. Auto-offering your coinbase output for swap can <strong>link your mined coins to swap activity and a counter-asset (XNO) destination, reducing your anonymity</strong>. Privacy-conscious miners should disable this, or first route rewards through the shielded/anon-spend flow before offering.</li>
+          <li><strong>Financial.</strong> Offers go out at the <strong>prevailing/seed rate</strong>, so you may be taken at an <strong>unfavorable price</strong>. Execution is not guaranteed.</li>
+          <li><strong>How to disable.</strong> Run the node with <code>--no-auto-liquidity</code>, or set the environment variable <code>OBX_AUTO_LIQUIDITY=0</code>.</li>
+        </ul>
+      </div>
+
+      <h2 id="swaps">Cross-chain swaps</h2>
+      <p>Obscura runs trustless OBX<->XNO atomic swaps via a scriptless 2-of-2 adaptor. The OBX leg, the P2P order book, and the Nano (XNO) signer move real value: Obscura plays the scriptable side via adaptor signatures and a timelocked swap output. No bridge, no custodian, no admin. An OBX<->BTC SHA256-HTLC design also exists in the code, but it is gated off: BTC is not in the settleable-asset allowlist, so OBX<->BTC offers cannot be posted, taken, or gossiped, and the pair is not currently takeable.</p>
+      <figure style="margin:1.5rem 0;text-align:center">
+        <img src="/assets/obx_xno_swap.svg" alt="OBX to XNO atomic swap sequence: maker funds OBX, taker locks real XNO, taker adapts the 2-of-2 claim revealing the secret, maker sweeps XNO" style="max-width:100%;height:auto;border:1px solid var(--border,#2a2a2a);border-radius:8px;background:#fff;padding:.5rem" />
+        <figcaption style="font-size:.85rem;opacity:.7;margin-top:.5rem">OBX&lt;-&gt;XNO scriptless 2-of-2 adaptor swap. The published OBX claim reveals the taker's XNO secret, which lets the maker independently sweep the XNO; the two legs settle atomically off one shared secret.</figcaption>
+      </figure>
+      <ul>
+        <li><strong>Split key material.</strong> The maker mints only its own shares (OBX claim share, XNO share, claim nonce) and the taker mints only its own; neither party ever holds the other's secrets. The joint OBX claim key and the joint XNO account are derived from public shares alone, each carrying a Schnorr proof-of-possession so the aggregation is rogue-key-safe.</li>
+        <li><strong>Adaptor signatures.</strong> The taker's adaptor point is forced to equal its XNO share, so publishing the full OBX claim signature reveals exactly that secret, which lets the maker independently sweep the XNO.</li>
+        <li><strong>On-chain swap output.</strong> A timelocked OBX output with a claim path (binds the aggregate nonce and adaptor point) before the unlock height, or a refund path (back to the maker) after it.</li>
+        <li><strong>Maker funds first.</strong> The maker locks OBX before any XNO moves, and the taker verifies that lock on-chain at the agreed terms before locking real XNO. A mismatch or abort strands nothing on either side.</li>
+        <li><strong>Decentralized liquidity.</strong> A P2P, signed, PoW-stamped, expiring order book (maker/taker, like Haveno/UnstoppableSwap). A settleability gate admits only OBX/XNO offers. No AMM is possible trustlessly across chains.</li>
+      </ul>
+      <p>The handshake settles in order:</p>
+      <ol>
+        <li><strong>Init.</strong> The taker sends amounts, fee, its public shares and adaptor point to the maker, who verifies the terms (rejecting a fee that differs from its configured fee) and replies with its own public shares.</li>
+        <li><strong>Maker funds OBX.</strong> The maker locks the agreed OBX to the joint claim key as a timelocked swap output (refundable to itself after the unlock height) and tells the taker the swap key and unlock height.</li>
+        <li><strong>Taker verifies, then locks XNO.</strong> The taker independently confirms the on-chain OBX output (claim key, amount, unlock height, open claim window, bound nonce and adaptor point, maker refund key) and only then locks the real XNO to the joint XNO account.</li>
+        <li><strong>Maker verifies the XNO lock.</strong> The maker reads the authoritative on-ledger destination and amount and requires it to pay exactly the joint account the exact agreed amount before co-signing.</li>
+        <li><strong>Taker claims OBX.</strong> The taker pre-signs its half of the 2-of-2 claim; the maker verifies that half (with a nonce-reuse guard that refuses a second core hash) and releases its half. The taker adapts in its XNO secret, mines the full OBX claim, and receives the OBX. Publishing that signature reveals the secret.</li>
+        <li><strong>Maker sweeps XNO.</strong> The maker recovers independently by scraping the on-chain claim signature, extracting the revealed secret, and sweeping the XNO to its destination. The optional completion relay is only a latency hint, drained and ignored; a withholding taker cannot freeze the maker's XNO.</li>
+      </ol>
+      <p>Refund and abort are safe by construction. The maker's locked OBX is protected by the on-chain refund timelock, armed only once the unlock height passes with no claim mined; the watcher always prefers sweeping while a claim is still possible. The taker locks nothing unless the OBX is provably locked at the agreed terms. Swap state is persisted per phase, so a crashed maker resumes its sweep-or-refund watcher (carrying the durable co-sign guard) on restart.</p>
+      <p>The XNO leg is driven through an operator-configured Nano RPC: selectable presets are rainstorm (default, the only one that does <code>work_generate</code>), somenano and nanoto, or a custom URL. Obscura hardcodes no Nano endpoint. Funding the XNO side works either from a node wallet or by signing the funding send locally from a raw key.</p>
+      <div class="callout">List and post offers from the wallet with <code>offers</code> and <code>offer</code>. Settlement runs end-to-end for OBX<->XNO. The OBX<->BTC HTLC is implemented as a design plus mock and is disabled at the order-book allowlist until a secp256k1 signer lands.</div>
+
+      <h2 id="fees">Fees &amp; replace-by-fee</h2>
+      <p>Fee estimation is manipulation-resistant: it takes the median across a window of recent blocks of each block's marginal fee-rate, gated on congestion, floored and capped — so one miner stuffing a block can't move the suggestion, and it degrades to the floor on quiet chains. Light clients can reproduce it from recent blocks.</p>
+      <ul>
+        <li><code>send --fee auto</code> sizes the fee from the node's estimate × your transaction's bytes.</li>
+        <li>Miners select transactions by fee-rate (deterministically), so paying more genuinely buys priority.</li>
+        <li><code>bump</code> does BIP125-style replace-by-fee: a higher-fee replacement that re-spends the same inputs supersedes a stuck payment.</li>
+      </ul>
+
+      <h2 id="security">Security &amp; key handling</h2>
+      <ul>
+        <li><strong>At-rest encryption.</strong> The seed and the scan-state are sealed with Argon2id (memory-hard KDF) + XChaCha20-Poly1305 (authenticated). Wrong passphrase or tampering is detected, never silently mis-decrypted. KDF parameters are bounded on read to prevent a hostile file from forcing a multi-hour unlock.</li>
+        <li><strong>Mnemonic.</strong> A 24-word checksummed phrase; a single mistyped word is rejected rather than producing a wrong wallet.</li>
+        <li><strong>View-only wallets.</strong> A view key grants visibility into incoming funds without any ability to spend.</li>
+        <li><strong>Verification.</strong> The implementation ships a critical-workflow test suite covering spend soundness, value conservation, and reorg recovery, and the header state-root lets light clients and snapshots verify all residual consensus state.</li>
+      </ul>
+      <div class="callout warn">Back up your seed phrase and remember your passphrase. There is no recovery if you lose either.</div>
+
+      <h2 id="tokenomics-doc">Tokenomics</h2>
+      <p>Emission follows a smooth, shift-based decay (<code>reward ≈ remainingSupply &gt;&gt; 19</code>) until a perpetual tail floor (~0.6 OBX/block) takes over — front-loaded distribution with security funded forever, and no halving cliffs. Three reinforcing incentives:</p>
+      <ul>
+        <li><strong>Mine.</strong> The base PoW reward secures the chain and is the source of all emission.</li>
+        <li><strong>Hold.</strong> 5% of each block's reward funds a bounded incentive pool; time-locking outputs earns a proportional, confidentiality-preserving share — redistribution, not new inflation.</li>
+        <li><strong>Grow.</strong> A capped, decaying referral bonus that never mints supply (it's a voluntary fee-share). Off by default for safety.</li>
+      </ul>
+
+      <h2 id="rpc">RPC API</h2>
+      <p>JSON over HTTP (default <code>127.0.0.1:18081</code>). Selected endpoints:</p>
+      <div class="code"><button class="copy">copy</button><pre><span class="cmd">GET  /status</span>          chain height, difficulty, supply, mempool size
+<span class="cmd">GET  /height</span>          tip height
+<span class="cmd">GET  /block?height=N</span>   serialized block
+<span class="cmd">GET  /headers?from=&amp;count=</span>  header range (SPV light clients)
+<span class="cmd">GET  /feerate?target=N</span>  suggested fee-per-byte
+<span class="cmd">GET  /mempool</span>         pending-tx count, bytes, fee-rate min/median/max
+<span class="cmd">GET  /peers</span>           connected peers
+<span class="cmd">GET  /offers</span>          swap order book
+<span class="cmd">POST /submittx</span>        broadcast a transaction
+<span class="cmd">POST /offer</span>           publish a swap offer
+<span class="cmd">GET  /blocktemplate?address=</span>  unmined block for an external miner
+<span class="cmd">POST /submitblock</span>     submit a solved block</pre></div>
+      <p>The <code>/witness</code> endpoint was deliberately removed — it leaked which output a wallet was interested in. Wallets build spends entirely offline.</p>
+
+      <h2 id="whitepaper">Whitepaper (in brief)</h2>
+      <p>Obscura's thesis: a privacy coin's anonymity should be a <strong>network effect</strong>, not a fixed per-transaction parameter. By accumulating every output into a group of unknown order and proving membership succinctly, the anonymity set becomes the entire UTXO set, with constant-size proofs and no trusted setup.</p>
+      <p>The honest trade-off is performance: class-group operations are slower than elliptic-curve math, and witness maintenance plus full zero-knowledge spends are heavier than a ring signature. Obscura accepts that cost in exchange for a qualitatively stronger, ever-growing anonymity guarantee and the elimination of decoy-selection leakage. The design is documented in the whitepaper and protocol specification.</p>
+
+      <h2 id="faq">FAQ</h2>
+      <h3>How is this different from Monero?</h3>
+      <p>Monero hides a spend in a ring of ~16 decoys chosen by a heuristic. Obscura hides it among <em>all</em> outputs via an accumulator — no decoys, no selection heuristic to leak, constant-size proofs, and a set that grows with adoption. The cost is slower group math.</p>
+      <h3>Is there a trusted setup?</h3>
+      <p>No. The class-group backend needs no ceremony at all. The RSA backend uses a public, nothing-up-my-sleeve modulus.</p>
+      <h3>Can I run a watch-only wallet?</h3>
+      <p>Yes — export a view key with <code>viewkey</code> and create one with <code>watch</code>. It sees incoming funds but cannot spend.</p>
+      <h3>Can I prove I paid someone?</h3>
+      <p>Yes. <code>proofsent</code> produces an offline-verifiable proof that you paid a specific amount to a specific address; recipients use <code>proof</code>. Both verify with <code>checkproof</code> and reveal nothing else.</p>
+      <h3>What is the proof-of-work?</h3>
+      <p>A memory-hard VM (a memory-hard cache, a per-nonce scratchpad, and a randomized int/float VM) with an epoch PoW seed and LWMA difficulty. Miners must also hold full block bodies (proof-of-retrievability), so mining and full-node operation are one and the same.</p>
+
+      <p class="muted" style="margin-top:48px;border-top:1px solid var(--border);padding-top:20px">Built in Go · no trusted setup · global anonymity set. <a href="/" class="accent-2">← Back to home</a></p>
+    </main>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom">
+      <span>© <span id="year">2026</span> Obscura · OBX.</span>
+      <span class="disclaimer">Open-source privacy software. No warranty. Not financial advice.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obscura — live privacy explorer</title>
+<meta name="description" content="Real-time visual explorer for Obscura (OBX): a flowing block stream, an animated mempool pending pool, confidential amounts, and a growing global anonymity set.">
+<style>
+  :root{
+    --bg:#070a14; --panel:rgba(20,26,44,.72); --line:rgba(124,140,180,.16);
+    --txt:#e8edf8; --mut:#8a97b4; --accent:#7c5cff; --accent2:#22d3ee;
+    --green:#34d399; --amber:#fbbf24; --pink:#f472b6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--txt);overflow-x:hidden;
+       font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  /* animated aurora backdrop */
+  body::before{content:"";position:fixed;inset:-20% -20% auto -20%;height:120vh;z-index:-1;
+    background:
+      radial-gradient(700px 480px at 18% 8%,rgba(124,92,255,.22),transparent 60%),
+      radial-gradient(680px 460px at 82% 4%,rgba(34,211,238,.16),transparent 60%),
+      radial-gradient(560px 520px at 60% 70%,rgba(244,114,182,.10),transparent 60%);
+    animation:drift 24s ease-in-out infinite alternate;filter:blur(8px)}
+  @keyframes drift{0%{transform:translate3d(0,0,0) scale(1)}100%{transform:translate3d(-3%,2%,0) scale(1.08)}}
+  a{color:var(--accent2);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 70px}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+        display:grid;place-items:center;font-weight:800;color:#070a14;font-size:20px;
+        box-shadow:0 0 26px rgba(124,92,255,.5)}
+  h1{font-size:21px;margin:0;letter-spacing:.2px}
+  .tag{font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+  .live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mut)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);animation:p 2s infinite}
+  .dot.bad{background:#ef4444;animation:none}
+  @keyframes p{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  .sub{color:var(--mut);font-size:13px;margin:2px 0 20px}
+  .glass{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+         backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+
+  /* price chart: stat header + toolbar + chart host */
+  #srcbadge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--mut)}
+  #srcbadge.real{color:var(--green);border-color:rgba(52,211,153,.4)}
+  #srcbadge.indic{color:var(--amber);border-color:rgba(251,191,36,.4)}
+  .phead{display:flex;align-items:center;gap:18px 26px;flex-wrap:wrap;margin:2px 0 12px}
+  .ph-last{display:flex;align-items:baseline;gap:10px}
+  .ph-price{font-size:28px;font-weight:760;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+  .ph-price small{font-size:13px;color:var(--mut);font-weight:600}
+  .ph-change{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;padding:2px 8px;border-radius:8px}
+  .ph-change.up{color:var(--green);background:rgba(52,211,153,.12)}
+  .ph-change.dn{color:#fca5a5;background:rgba(239,68,68,.12)}
+  .ph-change.flat{color:var(--mut);background:rgba(124,140,180,.10)}
+  .ph-grid{display:flex;gap:8px 22px;flex-wrap:wrap;margin-left:auto}
+  .ph-cell{display:flex;flex-direction:column;gap:1px}
+  .ph-k{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
+  .ph-v{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+  .ptools{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+  .seg-ctl{display:inline-flex;background:#0b1020;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg-ctl button{background:none;border:0;color:var(--mut);font:600 12px/1 inherit;padding:7px 11px;cursor:pointer;
+    border-right:1px solid var(--line);transition:.15s}
+  .seg-ctl button:last-child{border-right:0}
+  .seg-ctl button:hover{color:var(--txt)}
+  .seg-ctl button.on{background:var(--accent);color:#070a14}
+  .seg-ctl.ind button.on{background:var(--accent2);color:#070a14}
+  .indlen{width:58px;background:#0b1020;border:1px solid var(--line);border-radius:10px;color:var(--txt);
+    padding:6px 8px;font-size:12px;font-variant-numeric:tabular-nums}
+  .chartmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--mut);font-size:13px;pointer-events:none;text-align:center;padding:10px}
+  .chartmsg.hide{display:none}
+  #pricechart .lw-tooltip{position:absolute;display:none;z-index:6;pointer-events:none;
+    background:#0b1020;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11.5px;
+    box-shadow:0 8px 28px rgba(0,0,0,.5);min-width:148px}
+  #pricechart .lw-tooltip .tt-t{color:var(--mut);font-size:10.5px;margin-bottom:4px}
+  #pricechart .lw-tooltip .tt-r{display:flex;justify-content:space-between;gap:14px;font-variant-numeric:tabular-nums}
+  #pricechart .lw-tooltip .tt-r b{font-weight:700}
+
+  /* stat strip */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
+  .card{padding:14px 16px;position:relative;overflow:hidden}
+  .card .k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px}
+  .card .v{font-size:24px;font-weight:750;margin-top:3px;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+  .card .v small{font-size:13px;color:var(--mut);font-weight:600}
+  .card .spark{position:absolute;right:8px;bottom:6px;opacity:.85}
+  .flash{animation:flash .9s ease-out}
+  @keyframes flash{0%{background:rgba(124,92,255,.28)}100%{background:transparent}}
+
+  /* layout */
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .sec-h{display:flex;align-items:baseline;gap:10px;margin:2px 0 10px}
+  .sec-h h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;margin:0}
+  .sec-h .meta{font-size:12px;color:var(--mut)}
+
+  /* mempool pending pool */
+  #pool{position:relative;min-height:340px;padding:14px;display:flex;flex-wrap:wrap;gap:10px;
+        align-content:flex-start}
+  #pool .empty{margin:auto;color:var(--mut);font-size:13px;text-align:center}
+  .bub{--c:var(--accent);position:relative;border-radius:50%;display:grid;place-items:center;
+       background:radial-gradient(circle at 32% 28%,color-mix(in srgb,var(--c) 55%,#fff 8%),var(--c) 72%);
+       color:#070a14;font-weight:800;cursor:default;border:1px solid rgba(255,255,255,.18);
+       box-shadow:0 0 18px -2px var(--c);animation:rise .5s cubic-bezier(.2,1.3,.4,1) both,bob 6s ease-in-out infinite;
+       transition:transform .3s,opacity .3s;font-size:11px}
+  .bub.out{transform:scale(0);opacity:0}
+  @keyframes rise{from{transform:scale(0)}to{transform:scale(1)}}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .bub .tip{position:absolute;bottom:115%;left:50%;transform:translateX(-50%) translateY(4px);
+    background:#0b1020;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 10px;
+    font-weight:500;font-size:12px;white-space:nowrap;opacity:0;pointer-events:none;transition:.15s;z-index:5;
+    box-shadow:0 8px 28px rgba(0,0,0,.5)}
+  .bub:hover .tip{opacity:1;transform:translateX(-50%) translateY(0)}
+  .bub .tip .red{color:var(--accent2);font-style:italic}
+
+  /* block stream */
+  #stream{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 12px;scroll-behavior:smooth}
+  #stream::-webkit-scrollbar{height:8px}#stream::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+  .blk{flex:0 0 168px;padding:13px 14px;cursor:pointer;transition:transform .15s,border-color .15s;position:relative}
+  .blk:hover{transform:translateY(-3px);border-color:rgba(124,92,255,.5)}
+  .blk.new{animation:slidein .55s cubic-bezier(.2,1.1,.4,1) both}
+  @keyframes slidein{from{opacity:0;transform:translateX(-26px) scale(.96)}to{opacity:1;transform:none}}
+  .blk .h{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+  .blk .age{font-size:11px;color:var(--mut)}
+  .blk .txn{margin-top:9px;font-size:12px;color:var(--mut)}
+  .blk .txn b{color:var(--txt);font-size:14px}
+  .blk .hash{margin-top:7px;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--mut);word-break:break-all}
+  .blk .link{position:absolute;left:-12px;top:50%;width:12px;height:2px;background:var(--line)}
+
+  /* sidebar widgets */
+  .w{padding:14px 16px;margin-bottom:14px}
+  .w h3{margin:0 0 10px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px}
+  .gauge{height:10px;border-radius:999px;background:#0b1020;overflow:hidden;border:1px solid var(--line)}
+  .gauge>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green),var(--amber),var(--pink));transition:width .5s}
+  .grow{display:flex;justify-content:space-between;font-size:12px;color:var(--mut);margin-top:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:4px;font-size:12px;color:var(--mut)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .kpi{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--line)}
+  .kpi:last-child{border-bottom:0} .kpi b{font-variant-numeric:tabular-nums}
+
+  .bar{display:flex;gap:10px;align-items:center;margin:16px 0 6px}
+  .bar input{flex:1;background:#0b1020;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px 12px;font-size:14px}
+  .bar button{background:var(--accent);border:0;color:#070a14;font-weight:700;border-radius:10px;padding:10px 16px;cursor:pointer}
+
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(4,7,15,.74);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:20;overflow:auto;backdrop-filter:blur(4px)}
+  .modal.open{display:flex}
+  .sheet{max-width:900px;width:100%;padding:20px}
+  .sheet h3{margin:0 0 4px;font-size:16px}
+  .close{float:right;background:none;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:4px 10px;cursor:pointer}
+  .tx{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;background:rgba(11,16,32,.6)}
+  .tx .row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin-top:8px;font-size:13px}
+  .kv .lbl{color:var(--mut)}
+  .mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  .muted{color:var(--mut)} .conf{color:var(--accent2);font-style:italic}
+  .pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;display:inline-block}
+  .k-coinbase{background:rgba(251,191,36,.16);color:var(--amber)}
+  .k-confidential{background:rgba(124,92,255,.20);color:#b9a7ff}
+  .k-anonymous{background:rgba(34,211,238,.16);color:var(--accent2)}
+  .k-atomic-swap{background:rgba(52,211,153,.16);color:var(--green)}
+  .k-post-quantum{background:rgba(244,114,182,.16);color:var(--pink)}
+  /* data tables (live orders + swap history) */
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;overflow:hidden;border-radius:14px}
+  .tbl th{text-align:left;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;
+    font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tbl td{padding:9px 12px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tbl tr:last-child td{border-bottom:0}
+  .tbl tbody tr:hover{background:rgba(124,92,255,.07)}
+  .tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+  .tbl .hgt{color:var(--accent2);cursor:pointer}
+  .tbl .empty td{color:var(--mut);text-align:center;padding:16px}
+  .tblwrap{overflow-x:auto}
+  .pill.k-funded{background:rgba(124,92,255,.20);color:#b9a7ff}
+  .pill.k-claimed{background:rgba(52,211,153,.16);color:var(--green)}
+  .pill.k-refunded{background:rgba(251,191,36,.16);color:var(--amber)}
+  .pill.k-maker{background:rgba(34,211,238,.16);color:var(--accent2)}
+  .pill.k-taker{background:rgba(244,114,182,.16);color:var(--pink)}
+  /* live swap activity — compact session cards with a step tracker */
+  #swapactive{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  #swapactive .empty{color:var(--mut);font-size:13px;padding:14px;grid-column:1/-1}
+  .ses{padding:13px 15px}
+  .ses .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+  .ses .amt{margin-left:auto;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .ses .sid{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--mut)}
+  .ses .upd{font-size:11px;color:var(--mut);margin-top:8px}
+  .steps{display:flex;align-items:flex-start;gap:0;margin-top:10px}
+  .step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;min-width:0}
+  .step .dotn{width:18px;height:18px;border-radius:50%;background:#0b1020;border:1.5px solid var(--line);
+    display:grid;place-items:center;font-size:10px;color:var(--mut);z-index:1;transition:.3s}
+  .step.done .dotn{background:var(--green);border-color:var(--green);color:#070a14;font-weight:800}
+  .step.cur .dotn{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px rgba(124,92,255,.18);animation:p 2s infinite}
+  .step .lbl{font-size:9.5px;color:var(--mut);margin-top:5px;text-align:center;letter-spacing:.2px;line-height:1.2}
+  .step.done .lbl{color:var(--txt)} .step.cur .lbl{color:var(--accent);font-weight:700}
+  .step .seg{position:absolute;top:8.5px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
+  .step.done .seg{background:var(--green)}
+  .step:last-child .seg{display:none}
+  footer{margin-top:34px;color:var(--mut);font-size:12.5px;text-align:center;line-height:1.7}
+  .err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#fca5a5;padding:10px 14px;border-radius:10px;margin:10px 0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 32 32" style="width:22px;height:22px;display:block"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#0a0a16" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="2.1" fill="#1d6fff"/></svg></div>
+    <h1>Obscura&nbsp;Live</h1>
+    <span class="tag">OBX · live</span>
+    <a href="/wallet" style="color:var(--accent2);font-size:13px;font-weight:600">Wallet &amp; Swap →</a>
+    <span class="live"><span class="dot" id="dot"></span><span id="livetxt">connecting…</span></span>
+  </header>
+  <div class="sub">A real-time view of a privacy coin where amounts stay hidden. You watch the network <i>breathe</i>: a flowing block stream, a live mempool, and a forever-growing global anonymity set.</div>
+
+  <div id="err"></div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="glass w" id="pricepanel" style="margin-bottom:18px">
+    <div class="sec-h" style="margin:0 0 8px;flex-wrap:wrap">
+      <h2>OBX / XNO</h2>
+      <span class="meta" id="srcbadge"></span>
+    </div>
+
+    <!-- stat header: last price, 24h change, high/low/open, volume -->
+    <div class="phead" id="phead">
+      <div class="ph-last">
+        <span id="ph-price" class="ph-price">—</span>
+        <span id="ph-change" class="ph-change">—</span>
+      </div>
+      <div class="ph-grid">
+        <div class="ph-cell"><span class="ph-k">24h Open</span><span class="ph-v" id="ph-open">—</span></div>
+        <div class="ph-cell"><span class="ph-k">24h High</span><span class="ph-v" id="ph-high">—</span></div>
+        <div class="ph-cell"><span class="ph-k">24h Low</span><span class="ph-v" id="ph-low">—</span></div>
+        <div class="ph-cell"><span class="ph-k">24h Vol</span><span class="ph-v" id="ph-vol">—</span></div>
+      </div>
+    </div>
+
+    <!-- chart toolbar: type switch, timeframe, indicators -->
+    <div class="ptools">
+      <div class="seg-ctl" id="typectl">
+        <button data-type="candles" class="on">Candles</button>
+        <button data-type="line">Line</button>
+        <button data-type="area">Area</button>
+      </div>
+      <div class="seg-ctl" id="tfctl">
+        <button data-tf="60">1m</button>
+        <button data-tf="300">5m</button>
+        <button data-tf="900">15m</button>
+        <button data-tf="3600" class="on">1h</button>
+        <button data-tf="14400">4h</button>
+        <button data-tf="86400">1d</button>
+      </div>
+      <div class="seg-ctl ind" id="indctl">
+        <button data-ind="sma" title="Simple moving average">SMA</button>
+        <button data-ind="ema" title="Exponential moving average">EMA</button>
+        <button data-ind="vwap" title="Volume-weighted average price">VWAP</button>
+        <button data-ind="bb" title="Bollinger Bands (20,2)">BOLL</button>
+      </div>
+      <input id="indlen" class="indlen" type="number" min="2" max="200" value="20" title="SMA/EMA/BB period">
+    </div>
+
+    <div id="chartwrap" style="position:relative">
+      <div id="pricechart" style="height:340px;width:100%"></div>
+      <div id="chartmsg" class="chartmsg">building price history…</div>
+    </div>
+    <div class="grow" style="margin-top:6px">
+      <span class="muted" id="pricefoot">1 OBX priced in XNO · from settled trades (per-node, in-memory)</span>
+    </div>
+  </div>
+
+  <div class="glass w" id="liquiditypanel" style="margin-bottom:18px">
+    <div class="sec-h" style="margin:0 0 8px"><h2>Total liquidity · live order book</h2><span class="meta" id="liqmeta">—</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr>
+      <th>Pair</th><th class="num">Offers</th><th class="num">Σ give</th><th class="num">Σ get</th><th class="num">Best rate</th>
+    </tr></thead><tbody id="liqbody"><tr class="empty"><td colspan="5">building liquidity…</td></tr></tbody></table></div>
+    <div class="grow"><span class="muted">Aggregated across all live offers · per-node, in-memory</span></div>
+  </div>
+
+  <div class="sec-h"><h2>Live swap activity</h2><span class="meta" id="swapactivemeta">—</span></div>
+  <div id="swapactive"><div class="empty">no active swaps right now — in-progress atomic swaps and their steps appear here</div></div>
+  <div class="sub" style="margin:8px 0 18px;font-size:12px">
+    Each card is an in-flight cross-chain atomic swap, tracked through its lifecycle:
+    <b>init → funded → xno_lock → claim → sweep → done</b>. Green = completed step, pulsing = current step.
+    Sessions are per-node and ephemeral; they vanish once the swap settles.
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="sec-h"><h2>Mempool · pending pool</h2><span class="meta" id="poolmeta">—</span></div>
+      <div class="glass" id="pool"><div class="empty">waiting for pending transactions…</div></div>
+      <div class="legend">
+        <span><i style="background:#fbbf24"></i>coinbase</span>
+        <span><i style="background:#7c5cff"></i>confidential</span>
+        <span><i style="background:#22d3ee"></i>anonymous</span>
+        <span><i style="background:#34d399"></i>atomic-swap</span>
+        <span><i style="background:#f472b6"></i>post-quantum</span>
+        <span class="muted">· bubble size ∝ fee</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="glass w">
+        <h3>Anonymity set growth</h3>
+        <div id="anonspark"></div>
+        <div class="grow"><span id="anonnow">—</span><span class="muted">global, append-only</span></div>
+      </div>
+      <div class="glass w">
+        <h3>Mempool pressure</h3>
+        <div class="gauge"><i id="gauge" style="width:0%"></i></div>
+        <div class="grow"><span id="gaugelbl">empty</span><span class="muted">fee-rate spread</span></div>
+        <div style="margin-top:12px">
+          <div class="kpi"><span>Pending tx</span><b id="kp-count">0</b></div>
+          <div class="kpi"><span>Pending bytes</span><b id="kp-bytes">0</b></div>
+          <div class="kpi"><span>Total fees</span><b id="kp-fees">0</b></div>
+          <div class="kpi"><span>Median fee-rate</span><b id="kp-med">0</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar">
+    <input id="q" placeholder="Jump to a block height (e.g. 42)" inputmode="numeric">
+    <button onclick="search()">Open block</button>
+  </div>
+
+  <div class="sec-h"><h2>Block stream</h2><span class="meta">newest first · click a block for its (confidential) transactions</span></div>
+  <div id="stream"><div class="muted" style="padding:14px">loading…</div></div>
+
+  <div class="sec-h" style="margin-top:24px"><h2>Live orders</h2><span class="meta" id="ordersmeta">—</span></div>
+  <div class="glass tblwrap"><table class="tbl"><thead><tr>
+    <th>Pair</th><th class="num">Price</th><th class="num">Give</th><th class="num">Get</th>
+    <th>Expires</th><th>Order id</th><th>Maker</th>
+  </tr></thead><tbody id="orders"><tr class="empty"><td colspan="7">loading order book…</td></tr></tbody></table></div>
+
+  <div class="sec-h" style="margin-top:24px"><h2>Swap history</h2><span class="meta" id="swapsmeta">OBX-side contract lifecycle · last 1000 blocks</span></div>
+  <div class="glass tblwrap"><table class="tbl"><thead><tr>
+    <th>Event</th><th class="num">Amount</th><th class="num">Block</th><th>Age</th>
+    <th>Swap key</th><th>Txid</th>
+  </tr></thead><tbody id="swaps"><tr class="empty"><td colspan="6">loading swap events…</td></tr></tbody></table></div>
+  <div class="sub" style="margin-top:8px;font-size:12px">
+    On-chain OBX leg only: a swap is <b>funded</b>, then <b>claimed</b> or <b>refunded</b>. The cross-chain (BTC/XNO)
+    counter-leg and the order that produced it are off-chain and not shown here. Amounts are the cleartext locked OBX;
+    a claim/refund shows its amount only when the funding block is within the scan window.
+  </div>
+
+  <footer>
+    Obscura hides every amount cryptographically (Pedersen / lattice commitments) — this explorer shows only what is
+    <b>public</b> on-chain: block &amp; transaction structure, stealth one-time keys, key-image nullifiers, and fees.
+    <br><span id="backend"></span>
+  </footer>
+</div>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeM()">
+  <div class="sheet glass">
+    <button class="close" onclick="closeM()">esc ✕</button>
+    <h3 id="mtitle">Block</h3>
+    <div class="muted mono" id="mhash"></div>
+    <div id="mtxs"></div>
+  </div>
+</div>
+
+<script src="/lightweight-charts.standalone.production.js"></script>
+<script>
+const API = "/api/explorer";
+const COLORS = {coinbase:"#fbbf24",confidential:"#7c5cff",anonymous:"#22d3ee","atomic-swap":"#34d399","post-quantum":"#f472b6"};
+let failures=0, lastHeight=-1, anonHist=[], prevStats={};
+const bubbles=new Map(); // txid -> element
+
+function ago(ts){const s=Math.max(0,Math.floor(Date.now()/1000-ts));
+  if(s<60)return s+"s";if(s<3600)return Math.floor(s/60)+"m";if(s<86400)return Math.floor(s/3600)+"h";return Math.floor(s/86400)+"d";}
+function trunc(h){return h?h.slice(0,8)+"…"+h.slice(-6):"";}
+function expiresIn(ts){
+  if(!ts)return "—";
+  const s=Math.floor(ts-Date.now()/1000);
+  if(s<=0)return "expired";
+  if(s<60)return "in "+s+"s";if(s<3600)return "in "+Math.floor(s/60)+"m";
+  if(s<86400)return "in "+Math.floor(s/3600)+"h";return "in "+Math.floor(s/86400)+"d";
+}
+function fmtHashrate(h){
+  const u=["H/s","kH/s","MH/s","GH/s","TH/s","PH/s"];let i=0;
+  while(h>=1000&&i<u.length-1){h/=1000;i++;}
+  return (h>=100?h.toFixed(0):h.toFixed(2))+" "+u[i];
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function setLive(ok){const d=document.getElementById("dot"),t=document.getElementById("livetxt");
+  if(ok){d.className="dot";t.textContent="live";}else{d.className="dot bad";t.textContent="reconnecting…";}}
+async function get(path,extra=""){const r=await fetch(API+"?path="+path+extra);if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}
+
+function sparkline(vals,w=276,h=40){
+  if(vals.length<2)return `<svg width="${w}" height="${h}"></svg>`;
+  const mn=Math.min(...vals),mx=Math.max(...vals),sp=(mx-mn)||1;
+  const pts=vals.map((v,i)=>[i/(vals.length-1)*w,h-4-((v-mn)/sp)*(h-8)]);
+  const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const area=d+` L ${w} ${h} L 0 ${h} Z`;
+  return `<svg width="${w}" height="${h}" style="display:block">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity=".35"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#g)"/><path d="${d}" fill="none" stroke="#22d3ee" stroke-width="2"/>
+    <circle cx="${pts[pts.length-1][0].toFixed(1)}" cy="${pts[pts.length-1][1].toFixed(1)}" r="3" fill="#22d3ee"/></svg>`;
+}
+
+function statCard(k,v,sub,spark){
+  return `<div class="card glass" data-k="${k}"><div class="k">${k}</div>
+    <div class="v">${v}${sub?` <small>${sub}</small>`:""}</div>${spark?`<div class="spark">${spark}</div>`:""}</div>`;
+}
+
+// per-asset decimal places (atomic-unit scale) — keep in sync with the wallet.
+const DEC={OBX:12,XNO:12,BTC:8};
+// humanPrice converts a raw atomic rate (the string "get/give") into a human
+// price for the pair: how much get_asset 1 give_asset is worth. Convention
+// (matches the wallet): (get/10**DEC[get]) / (give/10**DEC[give]).
+function humanPrice(rawRate,give,get){
+  const m=String(rawRate).split("/");
+  const getAmt=Number(m[0]),giveAmt=Number(m[1]);
+  if(!giveAmt||!getAmt||!isFinite(getAmt)||!isFinite(giveAmt))return null;
+  const dg=DEC[give], dq=DEC[get];
+  if(dg===undefined||dq===undefined)return null;
+  // (get/10**dq)/(give/10**dg) = (get/give) * 10**(dg-dq)
+  const p=(getAmt/giveAmt)*Math.pow(10,dg-dq);
+  if(!isFinite(p)||p<=0)return null;
+  return p;
+}
+function fmtPrice(p){
+  if(p>=1000)return p.toLocaleString(undefined,{maximumFractionDigits:2});
+  if(p>=1)return p.toLocaleString(undefined,{maximumFractionDigits:4});
+  return p.toPrecision(4);
+}
+function priceCards(prices){
+  if(!Array.isArray(prices)||prices.length===0)
+    return statCard("Price","—","no market");
+  let html="";
+  for(const pr of prices){
+    const h=humanPrice(pr.rate,pr.give_asset,pr.get_asset);
+    const v=h===null?"—":fmtPrice(h);
+    html+=statCard(pr.pair||(pr.give_asset+"/"+pr.get_asset),v,(pr.offers||0)+" offer"+((pr.offers===1)?"":"s"));
+  }
+  return html;
+}
+
+/* ===================================================================
+   PROFESSIONAL PRICE CHART (TradingView Lightweight-Charts, vendored)
+   Pair OBX/XNO. Candle/Stats rate fields are raw atomic get/give DECIMAL
+   strings; humanRate() converts to "XNO per 1 OBX" applying the 10^(dg-dq)
+   decimal factor (both 12 ⇒ factor 1). Prefers /candles (settled trades);
+   falls back to the /pricehistory best-offer mid-line, clearly labeled
+   "indicative (no trades yet)".
+   =================================================================== */
+const CHART_PAIR="OBX/XNO", CHART_GIVE="OBX", CHART_GET="XNO";
+
+// humanRate converts a raw atomic get/give value (number or decimal string)
+// into the human price (how much GET per 1 GIVE), applying decimals.
+function humanRate(raw){
+  const a=Number(raw);
+  if(!isFinite(a)||a<=0)return null;
+  const dg=DEC[CHART_GIVE], dq=DEC[CHART_GET];
+  if(dg===undefined||dq===undefined)return null;
+  const p=a*Math.pow(10,dg-dq);
+  return (isFinite(p)&&p>0)?p:null;
+}
+// humanVol converts an atomic give-volume into human GIVE units.
+function humanVol(atomic){const v=Number(atomic)/Math.pow(10,DEC[CHART_GIVE]||0);return isFinite(v)?v:0;}
+
+const chartState={
+  type:"candles", tf:3600, lib:null, chart:null,
+  series:null,        // main price series (candles/line/area)
+  volSeries:null,     // volume histogram (sub-pane via separate priceScale)
+  overlays:{},        // indicator id -> [LineSeries...]
+  inds:new Set(),     // active indicator ids
+  len:20,             // SMA/EMA/BB period
+  candles:[],         // [{time,open,high,low,close,volume}] human-priced
+  source:"none",      // "candles" | "indicative" | "none"
+  lastBucket:null,
+  tooltip:null,
+};
+
+function lwReady(){return typeof window.LightweightCharts!=="undefined" && window.LightweightCharts.createChart;}
+
+function buildChart(){
+  if(chartState.chart||!lwReady())return;
+  const LC=window.LightweightCharts;
+  const el=document.getElementById("pricechart");
+  const chart=LC.createChart(el,{
+    autoSize:true,
+    layout:{background:{type:"solid",color:"transparent"},textColor:"#8a97b4",fontSize:11,
+      fontFamily:"ui-sans-serif,system-ui,-apple-system,sans-serif"},
+    grid:{vertLines:{color:"rgba(124,140,180,.08)"},horzLines:{color:"rgba(124,140,180,.08)"}},
+    rightPriceScale:{borderColor:"rgba(124,140,180,.18)",scaleMargins:{top:0.08,bottom:0.28}},
+    timeScale:{borderColor:"rgba(124,140,180,.18)",timeVisible:true,secondsVisible:false},
+    crosshair:{mode:LC.CrosshairMode.Normal,
+      vertLine:{color:"rgba(124,92,255,.5)",width:1,style:2,labelBackgroundColor:"#7c5cff"},
+      horzLine:{color:"rgba(124,92,255,.5)",width:1,style:2,labelBackgroundColor:"#7c5cff"}},
+  });
+  chartState.lib=LC; chartState.chart=chart;
+  // volume histogram in its own sub-pane (overlay scale 'vol', pinned to bottom)
+  const vol=chart.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:"vol",
+    color:"rgba(124,92,255,.5)"});
+  vol.priceScale().applyOptions({scaleMargins:{top:0.76,bottom:0}});
+  chartState.volSeries=vol;
+  makeMainSeries();
+  // crosshair tooltip
+  const tt=document.createElement("div");tt.className="lw-tooltip";el.appendChild(tt);chartState.tooltip=tt;
+  chart.subscribeCrosshairMove(p=>onCrosshair(p,el,tt));
+}
+
+function makeMainSeries(){
+  const {chart,lib}=chartState;
+  if(chartState.series){chart.removeSeries(chartState.series);chartState.series=null;}
+  if(chartState.type==="candles"){
+    chartState.series=chart.addCandlestickSeries({
+      upColor:"#34d399",downColor:"#ef4444",borderUpColor:"#34d399",borderDownColor:"#ef4444",
+      wickUpColor:"#34d399",wickDownColor:"#ef4444"});
+  }else if(chartState.type==="area"){
+    chartState.series=chart.addAreaSeries({lineColor:"#7c5cff",topColor:"rgba(124,92,255,.34)",
+      bottomColor:"rgba(124,92,255,0)",lineWidth:2});
+  }else{
+    chartState.series=chart.addLineSeries({color:"#7c5cff",lineWidth:2});
+  }
+  applyMainData();
+}
+
+// applyMainData feeds chartState.candles into the current main series shape.
+function applyMainData(){
+  const s=chartState.series; if(!s)return;
+  const c=chartState.candles;
+  if(chartState.type==="candles"){
+    s.setData(c.map(k=>({time:k.time,open:k.open,high:k.high,low:k.low,close:k.close})));
+  }else{
+    s.setData(c.map(k=>({time:k.time,value:k.close})));
+  }
+  if(chartState.volSeries){
+    chartState.volSeries.setData(c.map(k=>({time:k.time,value:k.volume,
+      color:(k.close>=k.open)?"rgba(52,211,153,.45)":"rgba(239,68,68,.45)"})));
+  }
+  renderIndicators();
+}
+
+/* ---------- client-side indicators (SMA / EMA / VWAP / Bollinger) ---------- */
+function sma(c,len){const o=[];let sum=0;for(let i=0;i<c.length;i++){sum+=c[i].close;
+  if(i>=len)sum-=c[i-len].close; if(i>=len-1)o.push({time:c[i].time,value:sum/len});}return o;}
+function ema(c,len){const o=[],k=2/(len+1);let e=null;
+  for(let i=0;i<c.length;i++){e=(e===null)?c[i].close:(c[i].close*k+e*(1-k));
+    if(i>=len-1)o.push({time:c[i].time,value:e});}return o;}
+function vwap(c){const o=[];let pv=0,vv=0;for(const k of c){const tp=(k.high+k.low+k.close)/3;
+  pv+=tp*k.volume;vv+=k.volume; o.push({time:k.time,value:vv>0?pv/vv:k.close});}return o;}
+function bollinger(c,len,mult){const mid=[],up=[],lo=[];
+  for(let i=len-1;i<c.length;i++){let m=0;for(let j=i-len+1;j<=i;j++)m+=c[j].close;m/=len;
+    let v=0;for(let j=i-len+1;j<=i;j++){const d=c[j].close-m;v+=d*d;}const sd=Math.sqrt(v/len);
+    mid.push({time:c[i].time,value:m});up.push({time:c[i].time,value:m+mult*sd});
+    lo.push({time:c[i].time,value:m-mult*sd});}
+  return {mid,up,lo};}
+
+const IND_COLORS={sma:"#fbbf24",ema:"#22d3ee",vwap:"#f472b6",bb:"#8a97b4"};
+function clearIndicators(){
+  for(const id in chartState.overlays){for(const s of chartState.overlays[id])chartState.chart.removeSeries(s);}
+  chartState.overlays={};
+}
+function renderIndicators(){
+  if(!chartState.chart)return;
+  clearIndicators();
+  const c=chartState.candles, len=chartState.len;
+  for(const id of chartState.inds){
+    if(c.length<2)continue;
+    if(id==="sma"){const s=chartState.chart.addLineSeries({color:IND_COLORS.sma,lineWidth:1,priceLineVisible:false,crosshairMarkerVisible:false});
+      s.setData(sma(c,len));chartState.overlays.sma=[s];}
+    else if(id==="ema"){const s=chartState.chart.addLineSeries({color:IND_COLORS.ema,lineWidth:1,priceLineVisible:false,crosshairMarkerVisible:false});
+      s.setData(ema(c,len));chartState.overlays.ema=[s];}
+    else if(id==="vwap"){const s=chartState.chart.addLineSeries({color:IND_COLORS.vwap,lineWidth:1,lineStyle:1,priceLineVisible:false,crosshairMarkerVisible:false});
+      s.setData(vwap(c));chartState.overlays.vwap=[s];}
+    else if(id==="bb"){const b=bollinger(c,len,2);
+      const su=chartState.chart.addLineSeries({color:"rgba(138,151,180,.7)",lineWidth:1,priceLineVisible:false,crosshairMarkerVisible:false});
+      const sm=chartState.chart.addLineSeries({color:"rgba(138,151,180,.45)",lineWidth:1,lineStyle:2,priceLineVisible:false,crosshairMarkerVisible:false});
+      const sl=chartState.chart.addLineSeries({color:"rgba(138,151,180,.7)",lineWidth:1,priceLineVisible:false,crosshairMarkerVisible:false});
+      su.setData(b.up);sm.setData(b.mid);sl.setData(b.lo);chartState.overlays.bb=[su,sm,sl];}
+  }
+}
+
+/* ---------- crosshair OHLCV tooltip ---------- */
+function onCrosshair(param,el,tt){
+  if(!param||!param.point||!param.time||param.point.x<0||param.point.y<0){tt.style.display="none";return;}
+  const c=chartState.candles.find(k=>k.time===param.time);
+  if(!c){tt.style.display="none";return;}
+  const d=new Date(c.time*1000);
+  const ds=d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  const up=c.close>=c.open;
+  const row=(k,v)=>`<div class="tt-r"><span class="muted">${k}</span><b>${v}</b></div>`;
+  if(chartState.type==="candles"){
+    tt.innerHTML=`<div class="tt-t">${ds}</div>`+
+      row("O",fmtPrice(c.open))+row("H",fmtPrice(c.high))+row("L",fmtPrice(c.low))+
+      `<div class="tt-r"><span class="muted">C</span><b style="color:${up?'#34d399':'#fca5a5'}">${fmtPrice(c.close)}</b></div>`+
+      row("Vol",c.volume.toLocaleString(undefined,{maximumFractionDigits:4})+" "+CHART_GIVE);
+  }else{
+    tt.innerHTML=`<div class="tt-t">${ds}</div>`+row("Price",fmtPrice(c.close)+" "+CHART_GET)+
+      row("Vol",c.volume.toLocaleString(undefined,{maximumFractionDigits:4})+" "+CHART_GIVE);
+  }
+  tt.style.display="block";
+  const W=el.clientWidth,H=el.clientHeight,tw=tt.offsetWidth,th=tt.offsetHeight;
+  let x=param.point.x+16; if(x+tw>W)x=param.point.x-tw-16; x=Math.max(2,x);
+  let y=param.point.y+16; if(y+th>H)y=param.point.y-th-16; y=Math.max(2,y);
+  tt.style.left=x+"px";tt.style.top=y+"px";
+}
+
+function setMsg(t){const m=document.getElementById("chartmsg");
+  if(t){m.textContent=t;m.classList.remove("hide");}else{m.classList.add("hide");}}
+function setSource(src){
+  chartState.source=src;
+  const b=document.getElementById("srcbadge");
+  const foot=document.getElementById("pricefoot");
+  if(src==="candles"){b.textContent="live · settled trades";b.className="real";
+    foot.textContent="1 OBX priced in XNO · OHLCV from the executed-trade tape (per-node, in-memory)";}
+  else if(src==="indicative"){b.textContent="indicative (no trades yet)";b.className="indic";
+    foot.textContent="No settled trades yet — showing the best-offer mid-rate from the live order book (indicative, not executed)";}
+  else{b.textContent="";b.className="";}
+}
+
+// candlesFromAPI maps raw /candles into human-priced bars (oldest-first, deduped).
+function candlesFromAPI(arr){
+  const out=[];let prevT=-1;
+  for(const k of arr){
+    const o=humanRate(k.open),h=humanRate(k.high),l=humanRate(k.low),c=humanRate(k.close);
+    if(o===null||h===null||l===null||c===null)continue;
+    const t=Number(k.open_time); if(t<=prevT)continue; prevT=t;
+    out.push({time:t,open:o,high:h,low:l,close:c,volume:humanVol(k.volume)});
+  }
+  return out;
+}
+// indicativeFromHistory builds flat OHLC bars (open=high=low=close=mid) bucketed
+// to the active timeframe from the /pricehistory best-offer mid samples.
+function indicativeFromHistory(d,tf){
+  const buckets=new Map();
+  for(const p of (d.points||[])){
+    const v=humanPrice(p.rate,d.give_asset,d.get_asset); // pricehistory rate is "get/give" with a slash
+    if(v===null||!isFinite(v))continue;
+    const t=Math.floor(Number(p.t)/tf)*tf;
+    const b=buckets.get(t);
+    if(!b)buckets.set(t,{time:t,open:v,high:v,low:v,close:v,volume:0});
+    else{b.high=Math.max(b.high,v);b.low=Math.min(b.low,v);b.close=v;}
+  }
+  return [...buckets.values()].sort((a,b)=>a.time-b.time);
+}
+
+// incrementalApply tries to update only the changed/last bars via series.update()
+// (aligned to the candle interval) instead of a full setData redraw. Returns true
+// if it handled the update; false ⇒ caller must do a full applyMainData().
+function incrementalApply(bars){
+  const cur=chartState.candles;
+  if(chartState.source!=="candles"||cur.length===0||bars.length===0)return false;
+  // same head length & timeframe ⇒ only tail bars may have changed/appended.
+  if(bars.length<cur.length)return false;
+  if(bars[0].time!==cur[0].time)return false; // history window shifted ⇒ full redraw
+  // find first index where new differs from old (by time or value)
+  let i=0;const n=Math.min(cur.length,bars.length);
+  while(i<n){const a=cur[i],b=bars[i];
+    if(a.time!==b.time||a.open!==b.open||a.high!==b.high||a.low!==b.low||a.close!==b.close||a.volume!==b.volume)break;
+    i++;}
+  if(i>=bars.length)return true; // nothing changed
+  // update only the tail (i..end) incrementally
+  for(let j=i;j<bars.length;j++){
+    const k=bars[j];
+    chartState.series.update(chartState.type==="candles"
+      ?{time:k.time,open:k.open,high:k.high,low:k.low,close:k.close}
+      :{time:k.time,value:k.close});
+    if(chartState.volSeries)chartState.volSeries.update({time:k.time,value:k.volume,
+      color:(k.close>=k.open)?"rgba(52,211,153,.45)":"rgba(239,68,68,.45)"});
+  }
+  chartState.candles=bars; renderIndicators();
+  return true;
+}
+
+async function refreshPrice(){
+  if(!chartState.chart){buildChart(); if(!chartState.chart){setMsg("chart library unavailable");return;}}
+  // 1) prefer real OHLCV candles from the executed-trade tape
+  let cd=null;
+  try{cd=await get("candles","&pair="+encodeURIComponent(CHART_PAIR)+"&interval="+chartState.tf+"&limit=500");}catch(e){cd=null;}
+  let bars=cd&&Array.isArray(cd.candles)?candlesFromAPI(cd.candles):[];
+  if(bars.length>0){
+    const wasCandles=(chartState.source==="candles");
+    if(wasCandles && incrementalApply(bars)){setSource("candles");setMsg(null);}
+    else{chartState.candles=bars; setSource("candles"); setMsg(null); applyMainData();}
+  }else{
+    // 2) fallback: indicative best-offer mid-line from /pricehistory
+    let ph=null;try{ph=await get("pricehistory");}catch(e){ph=null;}
+    const ind=ph?indicativeFromHistory(ph,chartState.tf):[];
+    if(ind.length>=1){chartState.candles=ind;setSource("indicative");setMsg(null);applyMainData();}
+    else{chartState.candles=[];setSource("none");setMsg("building price history…");}
+  }
+  refreshStats();
+}
+
+// refreshStats fills the stat header from /stats (24h OHLC + vol + change%).
+async function refreshStats(){
+  let st=null;try{st=await get("stats","&pair="+encodeURIComponent(CHART_PAIR));}catch(e){st=null;}
+  const $=id=>document.getElementById(id);
+  // last price: prefer /stats.last, else last candle close
+  let last=st&&st.last?humanRate(st.last):null;
+  if(last===null&&chartState.candles.length)last=chartState.candles[chartState.candles.length-1].close;
+  $("ph-price").innerHTML = last!==null ? (fmtPrice(last)+' <small>'+CHART_GET+'</small>') : "—";
+  // 24h change %: stats.change is a signed fraction string (e.g. +0.0532 = +5.32%)
+  const chEl=$("ph-change");
+  if(st&&st.change&&st.change!=="0"&&st.change!=="+"&&st.change!=="-"){
+    const f=Number(st.change);
+    if(isFinite(f)){const pct=f*100;chEl.textContent=(pct>=0?"+":"")+pct.toFixed(2)+"%";
+      chEl.className="ph-change "+(pct>0?"up":pct<0?"dn":"flat");}
+    else{chEl.textContent=st.change.startsWith("-")?"▼":"▲";chEl.className="ph-change "+(st.change.startsWith("-")?"dn":"up");}
+  }else{chEl.textContent="0.00%";chEl.className="ph-change flat";}
+  const showR=v=>{const h=humanRate(v);return h!==null?fmtPrice(h):"—";};
+  $("ph-open").textContent = st&&st.open?showR(st.open):"—";
+  $("ph-high").textContent = st&&st.high?showR(st.high):"—";
+  $("ph-low").textContent  = st&&st.low?showR(st.low):"—";
+  // 24h volume in GIVE units (OBX)
+  let vol = st&&st.volume!==undefined?humanVol(st.volume):0;
+  $("ph-vol").textContent = vol>0 ? (vol.toLocaleString(undefined,{maximumFractionDigits:3})+" "+CHART_GIVE)
+    : (chartState.source==="indicative"?"—":"0 "+CHART_GIVE);
+}
+
+/* ---------- toolbar wiring (type / timeframe / indicators) ---------- */
+function wireChartControls(){
+  document.querySelectorAll("#typectl button").forEach(btn=>btn.addEventListener("click",()=>{
+    document.querySelectorAll("#typectl button").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on"); chartState.type=btn.dataset.type;
+    if(chartState.chart){makeMainSeries();}
+  }));
+  document.querySelectorAll("#tfctl button").forEach(btn=>btn.addEventListener("click",()=>{
+    document.querySelectorAll("#tfctl button").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on"); chartState.tf=Number(btn.dataset.tf); chartState.lastBucket=null;
+    setMsg("loading…"); refreshPrice();
+  }));
+  document.querySelectorAll("#indctl button").forEach(btn=>btn.addEventListener("click",()=>{
+    const id=btn.dataset.ind;
+    if(chartState.inds.has(id)){chartState.inds.delete(id);btn.classList.remove("on");}
+    else{chartState.inds.add(id);btn.classList.add("on");}
+    renderIndicators();
+  }));
+  const len=document.getElementById("indlen");
+  len.addEventListener("change",()=>{let n=parseInt(len.value,10);
+    if(!isFinite(n)||n<2)n=2; if(n>200)n=200; len.value=n; chartState.len=n; renderIndicators();});
+}
+wireChartControls();
+
+async function refreshOrders(){
+  let d;try{d=await get("offersjson");}catch(e){return;}
+  const offers=(d.offers||[]);
+  document.getElementById("ordersmeta").textContent=offers.length+" live offer"+(offers.length===1?"":"s");
+  const tb=document.getElementById("orders");
+  if(offers.length===0){tb.innerHTML='<tr class="empty"><td colspan="7">no live offers</td></tr>';return;}
+  tb.innerHTML=offers.map(o=>{
+    const pair=esc((o.give_asset||"?")+"/"+(o.get_asset||"?"));
+    const hp=humanPrice((o.get_amount||0)+"/"+(o.give_amount||0),o.give_asset,o.get_asset);
+    const price=hp===null?"—":fmtPrice(hp);
+    const give=fmtAmt(o.give_amount,o.give_asset)+" "+esc(o.give_asset||"");
+    const getv=fmtAmt(o.get_amount,o.get_asset)+" "+esc(o.get_asset||"");
+    const exp=expiresIn(o.expiry);
+    return `<tr><td>${pair}</td><td class="num">${price}</td><td class="num">${give}</td><td class="num">${getv}</td>
+      <td>${exp}</td><td class="mono muted">${trunc(o.id)}</td><td class="mono muted">${trunc(o.maker)}</td></tr>`;
+  }).join("");
+}
+
+async function refreshSwaps(){
+  let d;try{d=await get("swaps");}catch(e){return;}
+  const ev=(d.events||[]);
+  document.getElementById("swapsmeta").textContent="OBX-side lifecycle · "+ev.length+" event"+(ev.length===1?"":"s")+" · last "+(d.window_blocks||0)+" blocks";
+  const tb=document.getElementById("swaps");
+  if(ev.length===0){tb.innerHTML='<tr class="empty"><td colspan="6">no swap events in the recent window</td></tr>';return;}
+  tb.innerHTML=ev.map(e=>{
+    const amt=e.amount_obx? (esc(e.amount_obx)+" OBX") : '<span class="muted">—</span>';
+    return `<tr><td><span class="pill k-${esc(e.kind)}">${esc(e.kind)}</span></td>
+      <td class="num">${amt}</td>
+      <td class="num hgt" onclick="openBlock(${Number(e.height)||0})">#${Number(e.height)||0}</td>
+      <td>${e.time?ago(e.time)+" ago":"—"}</td>
+      <td class="mono muted">${trunc(e.swap_key)}</td>
+      <td class="mono muted">${trunc(e.txid)}</td></tr>`;
+  }).join("");
+}
+
+// fmtAmt renders a raw atomic amount as a human figure using the DEC map.
+function fmtAmt(atomic,asset){
+  const d=DEC[asset];
+  if(d===undefined||atomic===undefined||atomic===null)return String(atomic||0);
+  const v=Number(atomic)/Math.pow(10,d);
+  if(!isFinite(v))return String(atomic);
+  if(v>=1)return v.toLocaleString(undefined,{maximumFractionDigits:6});
+  if(v===0)return "0";
+  return v.toPrecision(4);
+}
+// /swaps/active reports xno_amount as RAW Nano (1 XNO = 10^30 raw), unlike the 12-dec
+// offer-units used in /offers and /liquidity. fmtAmt would divide raw by 10^12 and
+// inflate it by 10^18 — use BigInt to scale by 10^30 instead.
+function fmtRawXNO(raw){
+  try{
+    const v=BigInt(raw), SCALE=10n**30n, whole=v/SCALE, frac=v%SCALE;
+    if(frac===0n) return whole.toString();
+    const f=frac.toString().padStart(30,"0").replace(/0+$/,"").slice(0,6);
+    return whole.toString()+(f?"."+f:"");
+  }catch(_){ return String(raw); }
+}
+
+// liquidity summary value (set by refreshLiquidity) shown as a main-strip stat card
+let liqStat=null; // {offers,makers} or null while building
+
+// refreshLiquidity aggregates the live order book from /liquidity into a small
+// per-pair table + a "Total liquidity" stat card on the main strip. Degrades to
+// "building…" if the endpoint is absent or returns nothing.
+async function refreshLiquidity(){
+  let d;try{d=await get("liquidity");}catch(e){return;}
+  const pairs=Array.isArray(d.pairs)?d.pairs:[];
+  const totOffers=(d.total_offers!==undefined)?Number(d.total_offers)
+    :pairs.reduce((a,p)=>a+(Number(p.offers)||0),0);
+  const totMakers=(d.total_makers!==undefined)?Number(d.total_makers):null;
+  liqStat={offers:totOffers,makers:totMakers};
+  document.getElementById("liqmeta").textContent=
+    totOffers+" offer"+(totOffers===1?"":"s")+(totMakers!==null?(" · "+totMakers+" maker"+(totMakers===1?"":"s")):"");
+  const tb=document.getElementById("liqbody");
+  if(pairs.length===0){tb.innerHTML='<tr class="empty"><td colspan="5">no liquidity yet</td></tr>';return;}
+  tb.innerHTML=pairs.map(p=>{
+    const give=p.give_asset||"?", get=p.get_asset||"?";
+    const pair=esc(p.pair||(give+"/"+get));
+    // best_rate is a raw "get/give" atomic string (same convention as offers);
+    // fall back to deriving from totals if absent.
+    const rawRate=(p.best_rate!==undefined&&p.best_rate!==null&&p.best_rate!=="")
+      ? String(p.best_rate)
+      : ((Number(p.total_get)||0)+"/"+(Number(p.total_give)||0));
+    const hp=humanPrice(rawRate,give,get);
+    const rate=hp===null?"—":(fmtPrice(hp)+" "+esc(get));
+    const sg=fmtAmt(p.total_give,give)+" "+esc(give);
+    const sq=fmtAmt(p.total_get,get)+" "+esc(get);
+    return `<tr><td>${pair}</td><td class="num">${Number(p.offers)||0}</td>
+      <td class="num">${sg}</td><td class="num">${sq}</td><td class="num">${rate}</td></tr>`;
+  }).join("");
+}
+
+// the canonical step order for a cross-chain atomic swap (OBX-side perspective).
+const SWAP_STEPS=["init","funded","xno_lock","claim","sweep","done"];
+const STEP_LABEL={init:"init",funded:"funded",xno_lock:"xno lock",claim:"claim",sweep:"sweep",done:"done"};
+
+// stepTracker renders a horizontal ✓/current/upcoming tracker. It accepts either
+// a backend-supplied steps:[{name,done}] list (authoritative) or, if absent,
+// derives progress from the session phase against SWAP_STEPS.
+function stepTracker(steps,phase){
+  let names, doneSet=new Set(), curIdx=-1;
+  if(Array.isArray(steps)&&steps.length){
+    names=steps.map(s=>String(s.name||""));
+    steps.forEach((s,i)=>{if(s.done)doneSet.add(i);});
+    // current = first not-done step (or none if all done)
+    curIdx=steps.findIndex(s=>!s.done);
+  }else{
+    names=SWAP_STEPS.slice();
+    const pi=SWAP_STEPS.indexOf(String(phase||"").toLowerCase());
+    if(pi>=0){for(let i=0;i<pi;i++)doneSet.add(i); curIdx=pi; if(pi===SWAP_STEPS.length-1){doneSet.add(pi);curIdx=-1;}}
+  }
+  return names.map((n,i)=>{
+    const done=doneSet.has(i), cur=(i===curIdx);
+    const cls="step"+(done?" done":"")+(cur?" cur":"");
+    const lbl=STEP_LABEL[n]||esc(n);
+    return `<div class="${cls}"><div class="seg"></div><div class="dotn">${done?"✓":(cur?"●":(i+1))}</div><div class="lbl">${lbl}</div></div>`;
+  }).join("");
+}
+
+// refreshSwapActive polls /swaps/active and renders each in-flight session as a
+// compact card with role pill, amounts and a step tracker. Degrades gracefully.
+async function refreshSwapActive(){
+  let d;try{d=await get("swapsactive");}catch(e){return;}
+  const ss=Array.isArray(d.sessions)?d.sessions:[];
+  const wrap=document.getElementById("swapactive");
+  document.getElementById("swapactivemeta").textContent=
+    ss.length?(ss.length+" active session"+(ss.length===1?"":"s")):"idle";
+  if(ss.length===0){
+    wrap.innerHTML='<div class="empty">no active swaps right now — in-progress atomic swaps and their steps appear here</div>';
+    return;
+  }
+  wrap.innerHTML=ss.map(s=>{
+    const role=String(s.role||"").toLowerCase();
+    const roleCls=(role==="maker"||role==="taker")?("k-"+role):"k-funded";
+    const rolePill=role?`<span class="pill ${roleCls}">${esc(role)}</span>`:"";
+    const phasePill=s.phase?`<span class="pill k-funded">${esc(String(s.phase))}</span>`:"";
+    const obx=(s.obx_amount!==undefined&&s.obx_amount!==null)?(fmtAmt(s.obx_amount,"OBX")+" OBX"):"";
+    const xno=(s.xno_amount!==undefined&&s.xno_amount!==null)?(fmtRawXNO(s.xno_amount)+" XNO"):"";
+    const amt=[obx,xno].filter(Boolean).join(" ⇄ ");
+    const upd=s.updated?("updated "+ago(s.updated)+" ago"):"";
+    return `<div class="ses glass">
+      <div class="top">${rolePill}${phasePill}<span class="amt">${esc(amt)}</span></div>
+      <div class="sid">${trunc(s.id)}</div>
+      <div class="steps">${stepTracker(s.steps,s.phase)}</div>
+      <div class="upd">${esc(upd)}</div></div>`;
+  }).join("");
+}
+
+async function refreshSummary(){
+  const s=await get("summary");
+  failures=0;setLive(true);document.getElementById("err").innerHTML="";
+  // anonymity-set history (for sparkline + growth)
+  if(anonHist.length===0||anonHist[anonHist.length-1]!==s.anonymity_set){anonHist.push(s.anonymity_set);if(anonHist.length>60)anonHist.shift();}
+  // network hashrate = difficulty / avg block interval (latest is newest-first)
+  let hr=0;const L=s.latest||[];
+  if(L.length>=2){
+    const k=Math.min(16,L.length-1);
+    let dt=L[0].time-L[k].time;              // newest-first
+    if(dt<=0)dt=k*(s.target_block_time||120); // clamp out-of-order/regressing timestamps
+    const avg=Math.max(1,dt/k);
+    hr=Number(s.difficulty)/avg;
+  }else{
+    hr=Number(s.difficulty)/(s.target_block_time||120); // low-height fallback
+  }
+  const st=document.getElementById("stats");
+  st.innerHTML=
+    statCard("Block height",Number(s.height).toLocaleString(),"",sparkHeight()) +
+    statCard("Anonymity set",Number(s.anonymity_set).toLocaleString(),"members") +
+    statCard("Supply",s.emitted_obx,s.ticker) +
+    statCard("Difficulty",Number(s.difficulty).toLocaleString()) +
+    statCard("Network hashrate",fmtHashrate(hr)) +
+    statCard("Mempool",s.mempool,"pending") +
+    (s.tvl_obx!==undefined? statCard("Value locked",s.tvl_obx,(s.vaults||0)+" vaults"):"") +
+    (liqStat? statCard("Total liquidity",liqStat.offers.toLocaleString(),"offer"+(liqStat.offers===1?"":"s")+(liqStat.makers!==null?(" · "+liqStat.makers+" maker"+(liqStat.makers===1?"":"s")):"")):"") +
+    priceCards(s.prices);
+  // flash the height card when a new block lands
+  if(lastHeight>=0 && s.height>lastHeight){const c=st.querySelector('[data-k="Block height"]');if(c)c.classList.add("flash");}
+  document.getElementById("anonspark").innerHTML=sparkline(anonHist);
+  document.getElementById("anonnow").textContent="now "+Number(s.anonymity_set).toLocaleString();
+  document.getElementById("backend").textContent=(s.pow_backend?("PoW: "+s.pow_backend+" · "):"")+"coin "+s.coin+" ("+s.ticker+")";
+  // block stream
+  renderStream(s.latest||[],s.height);
+  lastHeight=s.height;
+}
+function sparkHeight(){return "";} // height shown as number; anon set carries the sparkline
+
+function renderStream(latest,height){
+  const el=document.getElementById("stream");
+  el.innerHTML=latest.map((b,i)=>`
+    <div class="blk glass ${b.height>lastHeight&&i===0?"new":""}" onclick="openBlock(${b.height})">
+      ${i?'<div class="link"></div>':""}
+      <div class="h">#${b.height}</div><div class="age">${ago(b.time)} ago</div>
+      <div class="txn"><b>${b.txs}</b> tx${b.txs===1?"":"s"}</div>
+      <div class="txn">⛏ ${b.minted_obx}</div>
+      <div class="hash mono">${trunc(b.hash)}</div>
+    </div>`).join("") || '<div class="muted" style="padding:14px">no blocks yet</div>';
+}
+
+async function refreshMempool(){
+  let m;try{m=await get("mempool");}catch(e){return;}
+  document.getElementById("poolmeta").textContent=m.count+" pending · "+(m.bytes||0).toLocaleString()+" bytes";
+  document.getElementById("kp-count").textContent=m.count;
+  document.getElementById("kp-bytes").textContent=(m.bytes||0).toLocaleString();
+  document.getElementById("kp-fees").textContent=(m.total_fees_obx||"0");
+  document.getElementById("kp-med").textContent=(m.median_fee_rate||0);
+  const spread=m.max_fee_rate? Math.min(100,Math.round((m.median_fee_rate/m.max_fee_rate)*100)):0;
+  document.getElementById("gauge").style.width=(m.count?Math.max(6,spread):0)+"%";
+  document.getElementById("gaugelbl").textContent=m.count? (m.min_fee_rate+"–"+m.max_fee_rate+" /byte"):"empty";
+
+  const pool=document.getElementById("pool");
+  const seen=new Set();
+  const fees=(m.pending||[]).map(t=>t.fee_atomic||0);
+  const maxFee=Math.max(1,...fees);
+  (m.pending||[]).forEach(t=>{
+    seen.add(t.txid);
+    let b=bubbles.get(t.txid);
+    const sz=Math.round(34+ Math.sqrt((t.fee_atomic||0)/maxFee)*44); // 34..78px, sqrt for gentler scaling
+    if(!b){
+      b=document.createElement("div");b.className="bub";
+      b.style.setProperty("--c",COLORS[t.kind]||"#7c5cff");
+      // de-sync the bob animation per-bubble using a stable hash of the txid
+      let hsh=0;for(const ch of t.txid)hsh=(hsh*31+ch.charCodeAt(0))>>>0;
+      b.style.animationDelay="0s,"+(-(hsh%6000)/1000)+"s";
+      b.innerHTML=`<span>${t.num_inputs}→${t.num_outputs}</span>
+        <div class="tip"><b>${t.kind}</b> · fee ${t.fee_obx}<br>${t.num_inputs} in · ${t.num_outputs} out · amount <span class="red">▓▓▓ ${t.amount==="confidential"?"hidden":t.amount}</span><br><span class="muted mono">${trunc(t.txid)}</span></div>`;
+      if(pool.querySelector(".empty"))pool.innerHTML="";
+      pool.appendChild(b);bubbles.set(t.txid,b);
+    }
+    b.style.width=sz+"px";b.style.height=sz+"px";
+  });
+  // animate out bubbles whose tx left the mempool (mined or evicted)
+  for(const [id,b] of bubbles){
+    if(!seen.has(id)){b.classList.add("out");bubbles.delete(id);setTimeout(()=>b.remove(),350);}
+  }
+  if(bubbles.size===0 && !pool.querySelector(".empty")){
+    pool.innerHTML='<div class="empty">mempool is empty — transactions appear here the instant they are broadcast, then drain into the next block</div>';
+  }
+}
+
+function kind(k){return `<span class="pill k-${k}">${k}</span>`;}
+async function openBlock(h){
+  try{
+    const b=await get("block","&height="+h);
+    document.getElementById("mtitle").textContent="Block #"+b.height+" · "+b.txs.length+" tx · "+ago(b.time)+" ago";
+    document.getElementById("mhash").textContent=b.hash;
+    document.getElementById("mtxs").innerHTML=b.txs.map(t=>{
+      const ki=(t.key_images||[]).map(x=>`<div class="mono muted">${trunc(x)}</div>`).join("")||'<span class="muted">—</span>';
+      const ok=(t.output_keys||[]).map(x=>`<div class="mono muted">${trunc(x)}</div>`).join("")||'<span class="muted">—</span>';
+      const amt=t.coinbase?(t.amount+" OBX (coinbase)"):`<span class="conf">▓▓▓ confidential</span>`;
+      return `<div class="tx"><div class="row"><div>${kind(t.kind)} <span class="mono">${trunc(t.txid)}</span></div>
+        <div class="muted">fee ${t.fee_obx} OBX</div></div>
+        <div class="kv"><div class="lbl">Amount</div><div>${amt}</div>
+          <div class="lbl">Inputs</div><div>${t.num_inputs}</div>
+          <div class="lbl">Outputs</div><div>${t.num_outputs}</div>
+          <div class="lbl">Key-images</div><div>${ki}</div>
+          <div class="lbl">Output keys</div><div>${ok}</div></div></div>`;
+    }).join("");
+    document.getElementById("modal").classList.add("open");
+  }catch(e){alert("Block "+h+": "+e.message);}
+}
+function closeM(){document.getElementById("modal").classList.remove("open");}
+function search(){const v=document.getElementById("q").value.trim();if(v!=="")openBlock(parseInt(v,10));}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeM();});
+document.getElementById("q").addEventListener("keydown",e=>{if(e.key==="Enter")search();});
+
+async function tick(){
+  try{await refreshSummary();}
+  catch(e){failures++;setLive(false);if(failures>2)document.getElementById("err").innerHTML=`<div class="err">Cannot reach the node right now (${esc(e.message)}). Retrying…</div>`;}
+  refreshMempool(); // independent; its own try/catch
+  refreshPrice();   // realtime OBX/XNO price chart (own try/catch)
+  refreshOrders();  // live order book table (own try/catch)
+  refreshSwaps();   // on-chain swap-history table (own try/catch)
+  refreshLiquidity(); // total liquidity table + stat card (own try/catch)
+  refreshSwapActive(); // live in-flight swap sessions + step trackers (own try/catch)
+}
+tick();
+setInterval(refreshSummary,3000);
+setInterval(refreshMempool,1500); // mempool polled faster — it's the live, fast-moving layer
+setInterval(refreshPrice,3000);   // price history ticks every 3s, no page reload
+setInterval(refreshOrders,3000);  // order book refresh
+setInterval(refreshSwaps,5000);   // swap history (block-paced, slower)
+setInterval(refreshLiquidity,4000); // liquidity aggregate refresh
+setInterval(refreshSwapActive,3000); // active swap sessions — live, fast-moving
+</script>
+</body>
+</html>

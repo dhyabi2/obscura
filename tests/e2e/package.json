@@ -1,0 +1,8 @@
+{
+  "name": "obscura-wallet-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright e2e tests for the Obscura web wallet (served by a local obscura-node --ui)",
+  "scripts": { "test": "playwright test" },
+  "devDependencies": { "@playwright/test": "^1.49.0" }
+}

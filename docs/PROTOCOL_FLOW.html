@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obscura (OBX) — Whole-Protocol Flow</title>
+<style>
+  body{margin:0;background:#0a0e17;color:#e7edf7;font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  .top{padding:26px 28px 6px;text-align:center}
+  .top h1{margin:0;font-size:32px;background:linear-gradient(90deg,#7dd3fc,#a78bfa,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .top p{color:#93a1bd;margin:8px auto 0;max-width:840px}
+  .legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px;color:#93a1bd;font-size:12.5px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .diagram{padding:8px 14px 60px}
+  .mermaid{display:flex;justify-content:center}
+  .hint{text-align:center;color:#6b7a99;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>Obscura (OBX) — Whole-Protocol Flow</h1>
+    <p>One transaction's journey from wallet to confirmed, censorship-resistant state — and every subsystem it touches.</p>
+    <div class="legend">
+      <span><i style="background:#38bdf8"></i>Wallet</span>
+      <span><i style="background:#22d3ee"></i>Node / Mempool</span>
+      <span><i style="background:#34d399"></i>P2P mesh</span>
+      <span><i style="background:#fbbf24"></i>Miner</span>
+      <span><i style="background:#fb7185"></i>Validation</span>
+      <span><i style="background:#a78bfa"></i>State / Accumulators</span>
+      <span><i style="background:#f59e0b"></i>Header / Storage</span>
+    </div>
+  </div>
+
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TB
+
+%% ================= WALLET =================
+subgraph W["WALLET — build &amp; prove"]
+  direction TB
+  WK{spend type}
+  WK -->|transparent| WA["Pedersen commit + Schnorr ownership/value"]
+  WK -->|confidential ZK| WB["STARK prove: tree-membership + range + balance (hidden amounts)"]
+  WK -->|unlinkable| WC["recipient-secret note: pk=H(nk), nf=H(nk,rho)"]
+  WK -->|sender-anon ring| WD["Triptych one-out-of-many + key-image"]
+  WK -->|vault| WE["lock deposit (private staking)"]
+  WK -->|cross-chain| WF["BTC HTLC / Nano scriptless adaptor"]
+  WK -->|post-quantum| WG["ML-KEM-768 stealth + lattice commitment"]
+  WA & WB & WC & WD & WE & WF & WG --> WTX["signed tx + proof, stealth one-time output"]
+end
+
+WTX -->|"POST /submittx"| RPC
+
+%% ================= NODE / MEMPOOL =================
+subgraph N["NODE — admission"]
+  direction TB
+  RPC["RPC"] --> ADM["mempool admit (off-lock, parallel)"]
+  ADM --> CHK["verify proofs · value conservation · double-spend (shared nullifier set)"]
+  CHK -->|"fee floor · bounded 5000 · fee-priority evict"| POOL[("mempool")]
+end
+
+POOL -->|"Dandelion++ stem → fluff"| GOSS
+
+%% ================= P2P MESH =================
+subgraph P["P2P MESH — self-discovering, censorship-resistant"]
+  direction LR
+  GOSS["gossip blocks + txs"] --- DISC["PEX + self-address discovery (addr-me, 2+ votes)"]
+  DISC --- BOOK[("persistent address book")]
+  GOSS --- TOR["Tor / .onion (NAT traversal)"]
+end
+
+POOL -->|"select up to 1000 txs"| SEL
+
+%% ================= MINER =================
+subgraph M["MINER — must be a FULL NODE"]
+  direction TB
+  SEL["select txs"] --> TMPL["build block template"]
+  TMPL --> POR["Proof-of-Retrievability: answer k random body challenges (read history)"]
+  POR -.->|"pruned node → no body → CANNOT mine"| STOP(["rejected: not full node"])
+  POR --> ROOTS["compute header roots"]
+  ROOTS --> POW["RandomX PoW — paced to block time"]
+  POW --> BLK["mined block"]
+end
+
+BLK --> VAL
+
+%% ================= VALIDATION =================
+subgraph V["BLOCK VALIDATION — every node, even pruned"]
+  direction TB
+  V1["PoW + difficulty (LWMA) + median-time"] --> V2["PoR proofs vs stored headers"]
+  V2 --> V3["merkle root + NumTxs"]
+  V3 --> V4["per-tx proofs: STARK / ring / Pedersen / PQ (parallel)"]
+  V4 --> V5["conservation + nullifier no-double-spend"]
+  V5 --> V6["accumulator + Null + CM + PQ checkpoints match header"]
+end
+
+VAL --> APPLY["APPLY block (atomic, reorg-safe snapshot)"]
+
+%% ================= STATE =================
+subgraph S["STATE — constant-size, committed"]
+  direction LR
+  ACC[("RSA-2048 accumulator (all coins, O(1))")]
+  NUL[("nullifier set (spent)")]
+  CM[("epoch-sharded Poseidon commitment tree")]
+  PQA[("PQ anonymity accumulator")]
+  EXT[("vaults · swap contracts · incentive pool")]
+end
+
+APPLY --> ACC & NUL & CM & PQA & EXT
+
+%% ================= HEADER + CHAIN =================
+ACC & NUL & CM & PQA --> HDR["HEADER COMMITMENTS: AccRoot · NullRoot · CMRoot · PQAccRoot · PoRRoot · NumTxs"]
+HDR -.->|"bound by PoW (in preimage)"| ROOTS
+APPLY --> CHAIN[("canonical chain")]
+
+%% gossip the new block out + convergence
+BLK -->|"broadcast block"| GOSS
+GOSS -->|"peers validate + apply"| VAL
+CHAIN -->|"fork-choice = most cumulative work → reorg + replay"| CHAIN
+
+%% storage / new-node onboarding
+CHAIN --> PRUNE["3-tier pruning + state snapshot"]
+PRUNE -.->|"snapshot sync serves new nodes"| GOSS
+
+%% spend anchors back into the tree
+CM -.->|"recent CMRoot = spend anchor"| WB
+
+classDef wal fill:#0b2a3a,stroke:#38bdf8,color:#e7edf7;
+classDef nod fill:#08313a,stroke:#22d3ee,color:#e7edf7;
+classDef p2p fill:#0b3a2a,stroke:#34d399,color:#e7edf7;
+classDef min fill:#3a2e0b,stroke:#fbbf24,color:#e7edf7;
+classDef val fill:#3a1320,stroke:#fb7185,color:#e7edf7;
+classDef sta fill:#2a1f4a,stroke:#a78bfa,color:#e7edf7;
+classDef hdr fill:#3a2a08,stroke:#f59e0b,color:#e7edf7;
+class WK,WA,WB,WC,WD,WE,WF,WG,WTX wal;
+class RPC,ADM,CHK,POOL nod;
+class GOSS,DISC,BOOK,TOR p2p;
+class SEL,TMPL,POR,ROOTS,POW,BLK,STOP min;
+class V1,V2,V3,V4,V5,V6,VAL val;
+class ACC,NUL,CM,PQA,EXT,APPLY,CHAIN sta;
+class HDR,PRUNE hdr;
+    </pre>
+    <div class="hint">Tip: zoom your browser (⌘ +) to read every node. Color = subsystem (see legend).</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad:true, theme:'dark',
+      flowchart:{ curve:'basis', nodeSpacing:45, rankSpacing:55, htmlLabels:true, useMaxWidth:true },
+      themeVariables:{ fontSize:'13px', lineColor:'#46577a' }
+    });
+  </script>
+</body>
+</html>

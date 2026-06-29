@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obscura (OBX) — Full Architecture</title>
+<style>
+  :root{
+    --bg:#0a0e17; --bg2:#0e1422; --card:#121a2b; --card2:#16203400; --line:#243049;
+    --txt:#e7edf7; --mut:#93a1bd; --dim:#6b7a99;
+    --net:#38bdf8; --con:#fbbf24; --zk:#a78bfa; --eco:#34d399; --xc:#fb7185; --pq:#22d3ee; --sto:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 80% -10%,#16213b 0%,var(--bg) 55%);
+    color:var(--txt);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:40px 24px 80px}
+  header.hero{text-align:center;padding:30px 0 14px}
+  .badge{display:inline-block;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);
+    border:1px solid var(--line);border-radius:999px;padding:5px 14px;margin-bottom:18px}
+  h1{font-size:46px;margin:6px 0 8px;letter-spacing:-.02em;
+    background:linear-gradient(90deg,#7dd3fc,#a78bfa 45%,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tag{color:var(--mut);max-width:760px;margin:0 auto;font-size:16px}
+  .tag b{color:var(--txt)}
+  .pillrow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:22px 0 6px}
+  .pill{font-size:12.5px;color:var(--mut);background:#0f1828;border:1px solid var(--line);border-radius:8px;padding:6px 11px}
+  .pill b{color:#cfe0ff}
+  /* stack overview */
+  .stack{display:flex;flex-direction:column;gap:8px;margin:34px auto 10px;max-width:900px}
+  .srow{display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,#101a2c,#0d1525);
+    border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+  .srow .ico{width:34px;height:34px;border-radius:9px;flex:0 0 34px;display:grid;place-items:center;font-weight:700;color:#0a0e17}
+  .srow .nm{font-weight:650;min-width:170px}
+  .srow .ds{color:var(--mut);font-size:13.5px}
+  /* layers */
+  .layer{margin:46px 0 0}
+  .lhead{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+  .lhead .dot{width:12px;height:12px;border-radius:50%}
+  .lhead h2{font-size:21px;margin:0;letter-spacing:-.01em}
+  .lhead .sub{color:var(--dim);font-size:13px;margin-left:auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .card{background:linear-gradient(180deg,var(--card),#0e1525);border:1px solid var(--line);border-radius:14px;
+    padding:16px 16px 14px;position:relative;overflow:hidden;transition:transform .15s ease,border-color .15s ease}
+  .card:hover{transform:translateY(-3px);border-color:#34507e}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,#34507e)}
+  .card h3{margin:0 0 5px;font-size:15.5px;display:flex;align-items:center;gap:8px}
+  .card h3 .star{font-size:10px;color:#0a0e17;background:var(--accent);border-radius:5px;padding:2px 6px;font-weight:700;letter-spacing:.04em}
+  .card p{margin:0 0 10px;color:var(--mut);font-size:13.4px}
+  .inner{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .inner li{font-size:12.8px;color:var(--dim);padding-left:14px;position:relative}
+  .inner li::before{content:"▸";position:absolute;left:0;color:var(--accent);font-size:11px;top:1px}
+  .inner li b{color:#c6d3ea;font-weight:600}
+  footer{margin-top:54px;border-top:1px solid var(--line);padding-top:22px;color:var(--dim);font-size:12.5px;text-align:center}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:10px 0 0}
+  .legend span{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:12.5px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .note{max-width:920px;margin:30px auto 0;background:#0d1626;border:1px dashed var(--line);border-radius:12px;padding:14px 18px;color:var(--mut);font-size:13px}
+  .note b{color:#cfe0ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="badge">Architecture · every feature, every layer</div>
+    <h1>Obscura&nbsp;(OBX)</h1>
+    <p class="tag">A <b>post-quantum, trustless privacy coin</b>: a from-scratch transparent zk-STARK over a constant-size
+      accumulator, with confidential + sender-unlinkable spends, a censorship-resistant self-discovering network, and
+      consensus that forces miners to be full nodes.</p>
+    <div class="pillrow">
+      <div class="pill"><b>No trusted setup</b> · transparent zk-STARK</div>
+      <div class="pill"><b>Post-quantum</b> · hash + lattice</div>
+      <div class="pill"><b>O(1) state</b> · RSA-2048 accumulator</div>
+      <div class="pill"><b>Pure-Go</b> · CGO-disabled</div>
+      <div class="pill"><b>RandomX-style</b> PoW</div>
+    </div>
+  </header>
+
+  <!-- LAYER STACK OVERVIEW -->
+  <div class="stack">
+    <div class="srow"><div class="ico" style="background:var(--net)">N</div><div class="nm">Network &amp; P2P</div><div class="ds">self-discovering gossip mesh · Tor · Dandelion++ · bounded mempool</div></div>
+    <div class="srow"><div class="ico" style="background:var(--con)">C</div><div class="nm">Consensus &amp; PoW</div><div class="ds">RandomX-style PoW · accumulator state · proof-of-retrievability · reorg-safe</div></div>
+    <div class="srow"><div class="ico" style="background:var(--zk)">Z</div><div class="nm">Privacy &amp; ZK</div><div class="ds">transparent zk-STARK · confidential + unlinkable spends · stealth · rings</div></div>
+    <div class="srow"><div class="ico" style="background:var(--eco)">E</div><div class="nm">Economics</div><div class="ds">smooth emission · confidential staking vaults · incentive pool</div></div>
+    <div class="srow"><div class="ico" style="background:var(--xc)">X</div><div class="nm">Cross-chain</div><div class="ds">trustless atomic swaps (BTC HTLC · Nano scriptless) · gossiped order book</div></div>
+    <div class="srow"><div class="ico" style="background:var(--pq)">Q</div><div class="nm">Post-Quantum</div><div class="ds">ML-KEM stealth · lattice commitments · hybrid signatures</div></div>
+    <div class="srow"><div class="ico" style="background:var(--sto)">S</div><div class="nm">Storage &amp; Scaling</div><div class="ds">3-tier pruning · epoch sharding · snapshot sync · constant-size state</div></div>
+  </div>
+
+  <!-- ============ LAYER 1: NETWORK ============ -->
+  <section class="layer" style="--accent:var(--net)">
+    <div class="lhead"><span class="dot" style="background:var(--net)"></span><h2>1 · Network &amp; P2P</h2><span class="sub">how nodes find each other &amp; stay uncensorable</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--net)">
+        <h3>Self-discovering gossip mesh <span class="star">CENSORSHIP-RESISTANT</span></h3>
+        <p>Nodes auto-discover peers — no hardcoded seeds, no DNS-seed single point of failure. Bootstrap nodes are pure convenience; once a node has a few peers it keeps the full mesh, so seizing the original servers cannot stop the network.</p>
+        <ul class="inner">
+          <li><b>PEX</b> — peers exchange address lists (getaddr/addr)</li>
+          <li><b>Self-address discovery</b> — a node learns its own public IP from ≥2 peers' observations (Bitcoin "addr-me"); no config</li>
+          <li><b>Persistent address book</b> — survives restart, evicts dead peers by failure count</li>
+          <li><b>Routable-only PEX</b> — never advertises undialable (0.0.0.0) addresses</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--net)">
+        <h3>Transport privacy &amp; reachability</h3>
+        <p>Metadata-resistant transport so even the act of transacting is private, and NAT'd home users stay reachable.</p>
+        <ul class="inner">
+          <li><b>Tor support</b> — route P2P over Tor, advertise a <code>.onion</code> (also solves NAT)</li>
+          <li><b>Dandelion++</b> — tx stem/fluff relay hides the originating node</li>
+          <li><b>Onion-only mode</b> — fail-closed: never mixes clearnet peers into the Tor set</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--net)">
+        <h3>DoS hardening</h3>
+        <p>The gossip layer is built to absorb hostile peers without crashing or being flooded.</p>
+        <ul class="inner">
+          <li><b>Magic + version handshake</b> — rejects cross-network / wrong-fork peers</li>
+          <li><b>Ban scoring + per-IP caps</b> — misbehavior is penalized and evicted</li>
+          <li><b>Backoff-with-jitter dialing</b>, read/write deadlines, peer caps</li>
+          <li><b>Panic isolation</b> — a bad message drops one peer, never the node</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--net)">
+        <h3>Mempool &amp; ingestion</h3>
+        <p>Admission is parallel and the pool is bounded, so a transaction flood degrades gracefully instead of OOM-ing.</p>
+        <ul class="inner">
+          <li><b>Bounded mempool</b> — capped txs/bytes with fee-priority eviction</li>
+          <li><b>Parallel proof verification</b> — concurrent admission across cores; verified-proof cache avoids re-checking at block time</li>
+          <li><b>Min fee-per-byte</b> — anti-spam floor</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYER 2: CONSENSUS ============ -->
+  <section class="layer" style="--accent:var(--con)">
+    <div class="lhead"><span class="dot" style="background:var(--con)"></span><h2>2 · Consensus &amp; Proof-of-Work</h2><span class="sub">how blocks are made, ordered &amp; kept honest</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--con)">
+        <h3>RandomX-style PoW</h3>
+        <p>Memory-hard, CPU-friendly proof-of-work that resists ASIC/GPU centralization — anyone with a CPU can mine.</p>
+        <ul class="inner">
+          <li><b>VM-based hashing</b> — memory-hard, egalitarian</li>
+          <li><b>Per-epoch seed rotation</b> — seed taken from confirmed history so it can't be ground</li>
+          <li><b>LWMA difficulty retarget</b> — smooth, manipulation-resistant</li>
+          <li><b>Miner pacing</b> — production capped to the target interval (no block-spam starving P2P/RPC)</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--con)">
+        <h3>Proof-of-Retrievability <span class="star">MINERS = FULL NODES</span></h3>
+        <p>Consensus forces block producers to hold full history: to mine, you must answer pseudo-random "prove you still have transaction X in block Y" challenges. A pruned node literally cannot build a valid block.</p>
+        <ul class="inner">
+          <li><b>Challenge</b> — k random (block,leaf) pairs from the parent hash; unforgeable, ungrindable</li>
+          <li><b>Proof</b> — challenged tx bytes + merkle branch vs the committed header root</li>
+          <li><b>Asymmetric</b> — only the <em>miner</em> needs bodies; pruned nodes still <em>validate</em> from headers</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--con)">
+        <h3>Constant-size state accumulator</h3>
+        <p>The entire coin set is committed in an O(1) cryptographic accumulator, so validating state never grows with history.</p>
+        <ul class="inner">
+          <li><b>RSA-2048 group of unknown order</b> — add-only, succinct membership</li>
+          <li><b>Header commitments</b> — AccRoot, NullRoot (spent set), CMRoot (ZK tree), PQAccRoot, PoRRoot</li>
+          <li><b>Class-group target</b> — trustless, no-setup group (production roadmap)</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--con)">
+        <h3>Reorg safety &amp; conservation</h3>
+        <p>Chain reorganizations roll back and replay state atomically, and every block proves no coins were created from nothing.</p>
+        <ul class="inner">
+          <li><b>Snapshot + rollback</b> — all state (UTXO, nullifiers, ZK tree, PQ set) reorg-restored</li>
+          <li><b>Bounded reorg depth</b> — PoW seed lag ≥ max reorg keeps seeds branch-stable</li>
+          <li><b>Coinbase conservation proof</b> — supply invariant: new coins = base reward only</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYER 3: PRIVACY / ZK ============ -->
+  <section class="layer" style="--accent:var(--zk)">
+    <div class="lhead"><span class="dot" style="background:var(--zk)"></span><h2>3 · Privacy &amp; Zero-Knowledge</h2><span class="sub">the endgame: hide who, what, and the link</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--zk)">
+        <h3>Transparent zk-STARK engine</h3>
+        <p>A from-scratch proof system with <b>no trusted setup</b> and <b>post-quantum</b> security — only hashing and Reed-Solomon, nothing breakable by a quantum computer.</p>
+        <ul class="inner">
+          <li><b>Goldilocks field + NTT</b>, FRI low-degree test, DEEP-ALI AIR engine</li>
+          <li><b>Poseidon-over-Goldilocks</b> hash (width-3 &amp; width-8)</li>
+          <li><b>Zero-knowledge masking</b> — coset LDE + Z_H·r so proofs leak nothing about the witness</li>
+          <li><b>FRI grinding</b> — ~112-bit conjectured soundness</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--zk)">
+        <h3>Anonymous commitment-tree spend</h3>
+        <p>Spend a coin by proving — in zero knowledge — that it's <em>somewhere</em> in the tree, revealing only a nullifier. No ring, no decoys: the anonymity set is the whole chain.</p>
+        <ul class="inner">
+          <li><b>Poseidon commitment tree</b> with 256-bit nodes (2¹²⁸ collision-resistant)</li>
+          <li><b>Epoch sharding</b> — fixed-depth trees roll over → unlimited coins at constant proof cost</li>
+          <li><b>Nullifier set</b> — double-spend protection without revealing which coin</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--zk)">
+        <h3>Confidential amounts <span class="star">HIDDEN VALUE</span></h3>
+        <p>Transaction amounts are hidden end-to-end, proven conserved entirely in-field (no fragile cross-system binding).</p>
+        <ul class="inner">
+          <li><b>In-field value balance</b> — Σin = Σout + fee over hidden amounts</li>
+          <li><b>Range proofs</b> — bit-decomposition rules out inflation / field-wrap</li>
+          <li><b>Fused spend</b> — one STARK spends a hidden-value coin and mints a hidden-value coin</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--zk)">
+        <h3>Recipient-secret nullifier <span class="star">UNLINKABLE</span></h3>
+        <p>Removes sender↔spend linkability: the nullifier derives from a recipient secret the sender never learns, so the sender can't detect when their payment is later spent.</p>
+        <ul class="inner">
+          <li><b>Two-key note</b> (Zcash-style, all-Poseidon, no ECC): address pk = H(nk)</li>
+          <li><b>nf = H(nk, ρ)</b> — needs the recipient's secret nk</li>
+          <li><b>Spend authority</b> — only the nk-holder can spend (a thief who knows the address cannot)</li>
+          <li><b>Merged circuit</b> — confidential <em>and</em> unlinkable in one proof</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--zk)">
+        <h3>Stealth addresses</h3>
+        <p>Every payment lands at a fresh one-time key, so an address is never reused on-chain and recipients are unlinkable.</p>
+        <ul class="inner">
+          <li><b>One-time keys</b> from a sender↔recipient shared secret</li>
+          <li><b>View tags</b> — fast scan hint</li>
+          <li><b>Encrypted amount</b> — recipient recovers a hidden value off-chain</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--zk)">
+        <h3>Ring &amp; Pedersen path (classical)</h3>
+        <p>A parallel sound transparent path for spends, retained alongside the ZK endgame.</p>
+        <ul class="inner">
+          <li><b>Triptych-style one-out-of-many</b> ring spend (sender-anonymous)</li>
+          <li><b>Pedersen confidential amounts</b> + Schnorr conservation</li>
+          <li><b>Shared key-image set</b> — a coin can't be spent both ways</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYER 4: ECONOMICS ============ -->
+  <section class="layer" style="--accent:var(--eco)">
+    <div class="lhead"><span class="dot" style="background:var(--eco)"></span><h2>4 · Economics &amp; Incentives</h2><span class="sub">emission, yield &amp; alignment</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--eco)">
+        <h3>Emission &amp; supply</h3>
+        <p>A smooth, decreasing reward with a perpetual tail — predictable issuance with a hard cap before tail emission.</p>
+        <ul class="inner">
+          <li><b>Smooth decay</b> reward = remainingSupply ≫ shift</li>
+          <li><b>Supply cap</b> ~18.4M OBX + perpetual tail floor for security funding</li>
+          <li><b>Overflow-checked coinbase economics</b></li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--eco)">
+        <h3>Confidential staking vaults <span class="star">PRIVATE YIELD</span></h3>
+        <p>A built-in DeFi primitive: lock OBX to earn yield from the incentive pool — the staked amount and yield stay private.</p>
+        <ul class="inner">
+          <li><b>Time-locked deposits</b>, claimable principal + yield at maturity</li>
+          <li><b>Yield from the incentive pool</b> — bounded so it can never inflate supply</li>
+          <li><b>Proceeds re-enter</b> as fresh stealth outputs</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--eco)">
+        <h3>Incentive pool &amp; referrals</h3>
+        <p>A slice of each block funds long-term holders and an optional, sybil-guarded viral bonus.</p>
+        <ul class="inner">
+          <li><b>Holding bonus</b> — lock-duration-weighted, funded from 5% of reward</li>
+          <li><b>Referral bonus</b> — capped + decaying, off by default until sybil-bound</li>
+          <li><b>Fees</b> recycled to miners; supply invariant preserved</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYER 5: CROSS-CHAIN ============ -->
+  <section class="layer" style="--accent:var(--xc)">
+    <div class="lhead"><span class="dot" style="background:var(--xc)"></span><h2>5 · Cross-chain &amp; Interop</h2><span class="sub">trustless, no-admin bridges</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--xc)">
+        <h3>Bitcoin atomic swaps</h3>
+        <p>Trade OBX↔BTC with no custodian and no bridge operator — pure cryptographic atomicity.</p>
+        <ul class="inner">
+          <li><b>HTLC</b> hash-timelocked contracts — claim or refund, never steal</li>
+          <li><b>No admin key</b> — purely peer-to-peer</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--xc)">
+        <h3>Nano (XNO) atomic swaps</h3>
+        <p>Feeless, fast OBX↔XNO swaps using scriptless adaptor-signature atomicity.</p>
+        <ul class="inner">
+          <li><b>Scriptless</b> adaptor-signature swap (no on-chain script needed)</li>
+          <li><b>Sub-second</b> XNO settlement leg</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--xc)">
+        <h3>Gossiped swap order book</h3>
+        <p>Offers propagate over the same P2P gossip network — a decentralized, serverless marketplace.</p>
+        <ul class="inner">
+          <li><b>P2P order gossip</b> — no exchange, no listing server</li>
+          <li><b>Offer expiry + validation</b></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYER 6: POST-QUANTUM ============ -->
+  <section class="layer" style="--accent:var(--pq)">
+    <div class="lhead"><span class="dot" style="background:var(--pq)"></span><h2>6 · Post-Quantum</h2><span class="sub">secure against a quantum adversary</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--pq)">
+        <h3>Quantum-safe primitives</h3>
+        <p>A complete post-quantum transaction path so funds stay safe even once large quantum computers exist. (The zk-STARK core is already PQ — only hashing.)</p>
+        <ul class="inner">
+          <li><b>ML-KEM-768</b> stealth announcements (lattice KEM)</li>
+          <li><b>Lattice commitments</b> — PQ confidential amounts</li>
+          <li><b>Hybrid signatures</b> — classical + PQ one-time keys</li>
+          <li><b>PQ anonymity-set accumulator</b> with its own header root</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYER 7: STORAGE ============ -->
+  <section class="layer" style="--accent:var(--sto)">
+    <div class="lhead"><span class="dot" style="background:var(--sto)"></span><h2>7 · Storage &amp; Scaling</h2><span class="sub">stay light without losing trustlessness</span></div>
+    <div class="grid">
+      <div class="card" style="--accent:var(--sto)">
+        <h3>3-tier pruning</h3>
+        <p>Nodes can run light: old data is shed in tiers while the cryptographic commitments keep verification trustless.</p>
+        <ul class="inner">
+          <li><b>Tier 0</b> — evict cold blocks from RAM</li>
+          <li><b>Tier 1</b> — Merkle frontier + disk-backed sets</li>
+          <li><b>Tier 2</b> — snapshot + block-body pruning</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--sto)">
+        <h3>Snapshot sync &amp; constant state</h3>
+        <p>New nodes sync to a committed snapshot instead of replaying all history; state size is independent of coin count.</p>
+        <ul class="inner">
+          <li><b>State snapshots</b> committed + restorable on reorg</li>
+          <li><b>Constant-size accumulator</b> — node state O(depth), not O(coins)</li>
+          <li><b>Bolt persistence</b>, durable write-ahead ordering</li>
+        </ul>
+      </div>
+      <div class="card" style="--accent:var(--sto)">
+        <h3>Epoch-sharded anonymity</h3>
+        <p>The commitment tree shards into fixed-depth epochs, giving unlimited total coins at a constant per-proof cost.</p>
+        <ul class="inner">
+          <li><b>Roll-on-full</b> trees — proof depth never grows</li>
+          <li><b>All epoch roots are anchors</b>; finalized roots permanent</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="note">
+    <b>Honesty notes (engineering integrity):</b> Obscura mainnet is live and value-bearing.
+    The from-scratch zk-STARK + circuits have not had an external cryptographic audit; review them yourself. The ~112-bit FRI figure and the
+    zero-knowledge bound are <b>conjectured/industry-standard</b>, pending sign-off. Proof-of-retrievability is <b>proof-of-access</b>
+    (raises the bar on pruning-while-mining; full anti-outsourcing custody is future work). The class-group accumulator (no trusted setup)
+    is the production target; the current backend is RSA-2048.
+  </div>
+
+  <footer>
+    <div class="legend">
+      <span><i style="background:var(--net)"></i>Network</span>
+      <span><i style="background:var(--con)"></i>Consensus</span>
+      <span><i style="background:var(--zk)"></i>Privacy/ZK</span>
+      <span><i style="background:var(--eco)"></i>Economics</span>
+      <span><i style="background:var(--xc)"></i>Cross-chain</span>
+      <span><i style="background:var(--pq)"></i>Post-Quantum</span>
+      <span><i style="background:var(--sto)"></i>Storage</span>
+    </div>
+    <div style="margin-top:14px">Obscura (OBX) · full-stack architecture · <span style="color:#7dd3fc">★ = built this development cycle</span></div>
+  </footer>
+
+</div>
+</body>
+</html>

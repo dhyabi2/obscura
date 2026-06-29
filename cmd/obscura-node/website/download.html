@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Download Obscura — wallet · swap · one-click miner</title>
+<meta name="description" content="Download the Obscura desktop app (wallet + cross-chain swap + one-click mining) for macOS, Windows, and Linux. Single static binary, no dependencies." />
+<meta name="theme-color" content="#07070d" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%230b0b14%27/%3E%3Cpath%20d%3D%27M4%2027%20L9%2023%20L8%2016%20L11%206%20L14%2012%20L20%2011%20L27%205%20L24%2013%20L28%2016%20L23%2018%20L24%2024%20L19%2021%20L15%2026%20L11%2022%20Z%27%20fill%3D%27none%27%20stroke%3D%27%238b6cff%27%20stroke-width%3D%271.9%27%20stroke-linejoin%3D%27round%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<style>
+  .dlwrap{max-width:960px;margin:0 auto;padding:0 18px}
+  .dlhead{text-align:center;margin:48px 0 10px}
+  .dlhead h1{font-size:38px;margin:0 0 8px}
+  .dlhead p{color:var(--muted-2,#9aa3c4);max-width:620px;margin:0 auto;line-height:1.6}
+  .testbanner{background:rgba(248,113,113,.13);border:1px solid rgba(248,113,113,.45);color:#fca5a5;
+    padding:12px 14px;border-radius:12px;font-size:13.5px;line-height:1.55;margin:22px auto 30px;max-width:760px}
+  .testbanner b{color:#fecaca}
+  .dlgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:24px 0}
+  .dlcard{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:20px}
+  .dlcard.rec{border-color:rgba(139,108,255,.55);box-shadow:0 24px 60px -34px rgba(139,108,255,.7)}
+  .dlcard h3{margin:0 0 4px;font-size:20px;display:flex;align-items:center;gap:9px}
+  .dlcard .rectag{font-family:var(--mono,monospace);font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+    color:#c5b6ff;background:rgba(139,108,255,.16);border:1px solid rgba(139,108,255,.4);border-radius:999px;padding:2px 8px;margin-left:auto}
+  .dlcard .arch{color:var(--muted-2,#9aa3c4);font-size:13px;margin:2px 0 14px}
+  .dlbtn{display:block;text-align:center;background:linear-gradient(135deg,#8b6cff,#2b9bff);color:#fff;
+    text-decoration:none;font-weight:600;padding:11px 14px;border-radius:11px;margin:8px 0}
+  .dlbtn.alt{background:transparent;border:1px solid rgba(255,255,255,.16);color:#cbd3e6;font-weight:500;font-size:13px}
+  .steps2{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px 22px;margin:18px 0}
+  .steps2 h3{margin:0 0 10px}
+  .steps2 ol{margin:0;padding-left:20px;line-height:1.85}
+  .steps2 code,.mono2{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:1px 6px}
+  .steps2 pre{background:#0b0b14;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;overflow:auto;
+    font-family:var(--mono,monospace);font-size:12.5px;color:#cbd3e6;margin:8px 0}
+  details.adv{margin:8px 0}
+  details.adv summary{cursor:pointer;color:#9fb0ff;font-size:14px;margin:6px 0}
+  .muted{color:var(--muted-2,#9aa3c4)}
+  .tiny{font-size:12.5px}
+  footer .disclaimer{display:block;margin-top:6px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="/">
+      <svg class="logo" viewBox="0 0 32 32"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#8b6cff" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="2" fill="#2b9bff"/></svg>
+      <b>Obscura</b><span class="tick">OBX</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/wallet.html">Web wallet</a>
+      <a href="/explorer">Explorer</a>
+      <a class="nav-cta" href="/download">Download →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="dlwrap">
+  <div class="dlhead">
+    <h1>Download Obscura</h1>
+    <p>One app: a <b>non-custodial wallet</b>, the <b>cross-chain swap</b> desk, and <b>one-click mining</b> — running on <b>your own node</b>, so your keys and your activity never leave your machine. Single static binary, no dependencies.</p>
+  </div>
+
+  <div class="testbanner">
+    The app runs your own node, so (unlike the hosted web wallet) your IP and balance scans stay private to you. Back up your recovery phrase: it is stored only on this machine.
+  </div>
+
+  <!-- The release files live alongside this page once a release is published (see the
+       go-live checklist). Until then these links resolve under /releases/. The JS below
+       highlights the card matching the visitor's OS. -->
+  <div class="dlgrid" id="dlgrid">
+    <div class="dlcard" data-os="mac">
+      <h3>🍎 macOS</h3>
+      <div class="arch">Apple Silicon &amp; Intel · macOS 10.13+</div>
+      <a class="dlbtn" href="/releases/Obscura-darwin-arm64.zip">Download (Apple Silicon)</a>
+      <a class="dlbtn alt" href="/releases/Obscura-darwin-amd64.zip">Intel Mac (amd64)</a>
+    </div>
+    <div class="dlcard" data-os="win">
+      <h3>🪟 Windows</h3>
+      <div class="arch">Windows 10/11 · 64-bit</div>
+      <a class="dlbtn" href="/releases/Obscura-windows-amd64.zip">Download (x64)</a>
+      <a class="dlbtn alt" href="/releases/Obscura-windows-arm64.zip">ARM64</a>
+    </div>
+    <div class="dlcard" data-os="linux">
+      <h3>🐧 Linux</h3>
+      <div class="arch">glibc x86-64 &amp; ARM64</div>
+      <a class="dlbtn" href="/releases/Obscura-linux-amd64.tar.gz">Download (x86-64)</a>
+      <a class="dlbtn alt" href="/releases/Obscura-linux-arm64.tar.gz">ARM64</a>
+    </div>
+  </div>
+  <p class="tiny muted" style="text-align:center;margin:-6px 0 26px">
+    Verify your download against <a href="/releases/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a> before running it (commands below).
+  </p>
+
+  <div class="steps2">
+    <h3>Run it</h3>
+    <ol>
+      <li><b>Unzip</b> the download.</li>
+      <li><b>macOS:</b> open the <code>Obscura.app</code>. <b>Windows:</b> double-click <code>Obscura.bat</code>. <b>Linux:</b> run <code>./obscura</code>.</li>
+      <li>A native app window opens with your <b>wallet</b>, <b>swap</b>, and <b>mining</b>. The node bootstraps to the network automatically (built-in seeds + peer exchange) and starts mining to your wallet.</li>
+      <li><b>Back up your recovery phrase immediately</b> — it is stored only on this machine; if you lose it, your coins are gone for good.</li>
+    </ol>
+  </div>
+
+  <div class="steps2">
+    <h3>⚠ First-launch security warning (unsigned builds)</h3>
+    <p class="muted tiny">These builds are not code-signed, so the OS will warn you the first time. Verify the checksum, then:</p>
+
+    <details class="adv" open>
+      <summary><b>macOS</b> — “Obscura is damaged / cannot be opened”</summary>
+      <p class="tiny muted">Gatekeeper quarantines unsigned apps. After unzipping, clear the quarantine flag, then open:</p>
+      <pre>xattr -dr com.apple.quarantine /path/to/Obscura.app
+open /path/to/Obscura.app</pre>
+      <p class="tiny muted">Or: right-click the app → <b>Open</b> → <b>Open</b> in the dialog (first run only).</p>
+    </details>
+
+    <details class="adv">
+      <summary><b>Windows</b> — “Windows protected your PC” (SmartScreen)</summary>
+      <p class="tiny muted">Click <b>More info</b> → <b>Run anyway</b>. If a zone block remains, unblock the file first:</p>
+      <pre>Right-click Obscura.bat → Properties → check "Unblock" → OK</pre>
+    </details>
+
+    <details class="adv">
+      <summary><b>Linux</b> — make it executable</summary>
+      <pre>tar xzf Obscura-linux-amd64.tar.gz
+cd Obscura-linux-amd64
+chmod +x obscura obscura-node
+./obscura</pre>
+    </details>
+  </div>
+
+  <div class="steps2">
+    <h3>Verify the checksum</h3>
+    <pre><span class="muted"># macOS / Linux — compare against SHA256SUMS.txt</span>
+shasum -a 256 Obscura-darwin-arm64.zip
+<span class="muted"># Windows (PowerShell)</span>
+Get-FileHash .\Obscura-windows-amd64.zip -Algorithm SHA256</pre>
+    <p class="tiny muted">The printed hash must match the line for your file in <a href="/releases/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a>. If it doesn't, do not run the file.</p>
+  </div>
+
+  <div class="steps2">
+    <h3>Prefer to build from source?</h3>
+    <pre>git clone &lt;repo&gt; &amp;&amp; cd obscura
+CGO_ENABLED=0 go build -o obscura-node ./cmd/obscura-node
+./obscura-node --ui --mine        <span class="muted"># wallet + swap + mining desktop app</span></pre>
+    <p class="tiny muted">Pure Go, CGO-free — cross-compiles to every OS. See the <a href="/docs.html#quickstart" style="color:#9fb0ff">quickstart</a>.</p>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom">
+      <span>© <span id="year">2026</span> Obscura · OBX.</span>
+      <span class="disclaimer">Open-source privacy software. No warranty.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById("year").textContent = new Date().getFullYear();
+  // Highlight the card matching the visitor's OS.
+  (function(){
+    var p = (navigator.userAgentData && navigator.userAgentData.platform || navigator.platform || "").toLowerCase();
+    var ua = navigator.userAgent.toLowerCase();
+    var os = /mac/.test(p) ? "mac" : /win/.test(p) ? "win" : /linux|x11|android/.test(p+ua) ? "linux" : "";
+    if(os){ var c=document.querySelector('.dlcard[data-os="'+os+'"]'); if(c){ c.classList.add("rec");
+      var t=document.createElement("span"); t.className="rectag"; t.textContent="your OS"; c.querySelector("h3").appendChild(t); } }
+  })();
+</script>
+</body>
+</html>

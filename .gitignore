@@ -1,0 +1,23 @@
+# build artifacts
+/bin/
+/dist/
+
+# runtime data
+*.db
+.obscura/
+data/
+*.seed
+
+# OS / editor
+.DS_Store
+*.swp
+*.log
+
+# push hygiene (added for GitHub)
+.env
+.testwallet/
+/obscura-miner
+/obscura-swap
+/obscura-dexsim
+/tests/e2e/test-results/
+/cmd/obscura-node/website/releases/

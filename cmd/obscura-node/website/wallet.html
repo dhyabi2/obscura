@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Content-Security-Policy (audit #3a). Also set as an HTTP header in vercel.json; this
+     <meta> is the in-page fallback. All resources are SAME-ORIGIN: wasm_exec.js, wallet.wasm,
+     the /api/explorer proxy, and the /xno/* node calls. Go WASM needs 'wasm-unsafe-eval'.
+     'unsafe-inline' is currently required because the page uses an inline <style> and a large
+     inline <script> (see report caveat — extracting them to external files would let us drop it). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
+<title>Obscura Wallet — non-custodial, in-browser (mainnet)</title>
+<meta name="description" content="Non-custodial Obscura (OBX) web wallet: keys and signing run entirely in your browser via WebAssembly. Send confidential OBX, stake vaults, and post experimental cross-chain swap offers (OBX↔XNO; BTC disabled).">
+<style>
+  :root{--bg:#070a14;--panel:rgba(20,26,44,.72);--line:rgba(124,140,180,.16);--txt:#e8edf8;--mut:#8a97b4;--accent:#7c5cff;--accent2:#22d3ee;--green:#34d399;--amber:#fbbf24;--pink:#f472b6;--red:#ef4444}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:var(--bg);color:var(--txt);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+  body::before{content:"";position:fixed;inset:-20% -20% auto -20%;height:120vh;z-index:-1;background:radial-gradient(700px 480px at 18% 8%,rgba(124,92,255,.22),transparent 60%),radial-gradient(680px 460px at 82% 4%,rgba(34,211,238,.16),transparent 60%);filter:blur(8px)}
+  a{color:var(--accent2);text-decoration:none}a:hover{text-decoration:underline}
+  .wrap{max-width:760px;margin:0 auto;padding:22px 16px 70px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+  .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#070a14;font-size:19px;box-shadow:0 0 24px rgba(124,92,255,.5)}
+  h1{font-size:20px;margin:0}
+  .tag{font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+  .nav{margin-left:auto;display:flex;gap:14px;font-size:13px}
+  .sub{color:var(--mut);font-size:13px;margin:2px 0 16px}
+  .glass{background:var(--panel);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .tabs{display:flex;gap:8px;margin:0 0 14px}
+  .tab{padding:8px 16px;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px;color:var(--mut);border:1px solid transparent}
+  .tab.on{color:var(--txt);background:var(--panel);border-color:var(--line)}
+  .card{padding:18px;margin-bottom:14px}
+  h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin:0 0 12px}
+  label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+  input,select{width:100%;background:#0b1020;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px 12px;font-size:14px}
+  button{background:var(--accent);border:0;color:#070a14;font-weight:700;border-radius:10px;padding:10px 16px;cursor:pointer;font-size:14px}
+  button.mini{padding:5px 10px;font-size:12px;border-radius:8px}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  button:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;word-break:break-all}
+  .big{font-size:30px;font-weight:750;font-variant-numeric:tabular-nums}
+  .muted{color:var(--mut)}
+  .warn{background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);color:#fcd34d;padding:10px 12px;border-radius:10px;font-size:13px;margin:10px 0}
+  .danger{background:rgba(248,113,113,.13);border:1px solid rgba(248,113,113,.45);color:#fca5a5;padding:11px 13px;border-radius:10px;font-size:13px;line-height:1.55;margin:0 0 14px}
+  .danger b{color:#fecaca}
+  .err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#fca5a5;padding:10px 12px;border-radius:10px;font-size:13px;margin:10px 0}
+  .ok{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:#86efac;padding:10px 12px;border-radius:10px;font-size:13px;margin:10px 0;word-break:break-all}
+  .seedbox{background:#0b1020;border:1px dashed var(--accent);border-radius:10px;padding:12px;margin:10px 0;font-family:ui-monospace,Menlo,monospace;font-size:14px;letter-spacing:.3px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-size:13px}
+  th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(124,92,255,.18);color:#b9a7ff}
+  .hide{display:none}
+  footer{margin-top:24px;color:var(--mut);font-size:12px;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 32 32" style="width:22px;height:22px;display:block"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#0a0a16" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="2.1" fill="#1d6fff"/></svg></div>
+    <h1>Obscura Wallet</h1>
+    <span class="tag">non-custodial · in-browser</span>
+    <nav class="nav"><a href="/explorer">Explorer</a><a href="/download">Download app</a><a href="/">Home</a></nav>
+  </header>
+  <div class="sub">Your keys and every signature run <b>entirely in your browser</b> (WebAssembly) — nothing is ever sent to a server except already-signed transactions. Confidential amounts, stealth addresses.</div>
+
+  <!-- TRUST-MODEL DISCLOSURE (audit S4). Honest by default everywhere; JS softens
+       the wording on a local node (your own machine = no shared-operator caveat). -->
+  <div id="trustBanner" class="danger">
+    <b>Read before you use this.</b> Obscura mainnet is <b>live</b>, but it uses new from-scratch cryptography that has not had an external audit, so review it and understand the risks before committing significant value.
+    On the hosted site, every request you make is routed through <b>one operator's node</b>: that operator (and the hosting provider) can see your IP, your balance scans, and your swap activity, which weakens the on-chain privacy. Your recovery phrase is stored <b>encrypted in this browser</b> (passphrase-protected), but clearing site data still erases it, so keep your 24-word backup. For real privacy and self-custody, <a href="/download" style="color:#fecaca;text-decoration:underline">download and run your own node</a>.
+  </div>
+
+  <!-- RUN-YOUR-OWN-NODE GUIDANCE (audit #14/#17/#18). The proxy already withholds your IP
+       from the operator node, but a shared node still sees your scan/swap timing. The real
+       fix is self-hosting. Hidden on localhost (already private) by the trust-banner JS. -->
+  <div id="ownNodeNote" class="warn" style="font-size:13px;line-height:1.55">
+    <b>Want full privacy?</b> Run your own node and point this wallet at it — then no shared operator ever sees your IP, balance scans, or swap intent.
+    <ol style="margin:8px 0 4px 18px;padding:0">
+      <li><a href="/download" style="text-decoration:underline">Download the node</a> and start it: <span class="mono">./obscura-node</span> (serves this same wallet UI locally).</li>
+      <li>Open the wallet from <span class="mono">http://localhost:&lt;port&gt;</span> instead of this hosted site — your seed and all requests stay on your machine.</li>
+    </ol>
+  </div>
+
+  <div id="boot" class="card glass"><span class="muted">Loading wallet engine…</span></div>
+
+  <div id="app" class="hide">
+    <div class="tabs">
+      <div class="tab on" data-tab="wallet">Wallet</div>
+      <div class="tab" data-tab="vaults">Vaults</div>
+      <div class="tab" data-tab="swap">Swap</div>
+      <div class="tab" data-tab="xno">XNO proceeds</div>
+    </div>
+
+    <!-- WALLET -->
+    <section id="t-wallet">
+      <div id="noWallet" class="card glass">
+        <h2>Get started</h2>
+        <div class="warn" style="font-size:12.5px">Your wallet is <b>encrypted in this browser</b> with a passphrase you choose. The passphrase is <b>separate from your 24-word recovery phrase and is NOT recoverable</b> — if you forget it, just restore below from your 24 words. Nothing is ever stored unencrypted.</div>
+        <div class="row" style="margin-top:8px"><button onclick="createWallet()">Create new wallet</button>
+          <button class="ghost hide" id="unlockBtn" onclick="unlockExisting()">Unlock existing wallet</button></div>
+        <label>…or restore from your 24-word recovery phrase</label>
+        <input id="restorePhrase" placeholder="word1 word2 … word24">
+        <div class="row" style="margin-top:10px"><button class="ghost" onclick="restoreWallet()">Restore</button></div>
+        <div id="newSeed"></div>
+      </div>
+
+      <div id="haveWallet" class="hide">
+        <div class="card glass">
+          <h2>Balance</h2>
+          <div class="big" id="balance">— OBX</div>
+          <div class="row" style="margin-top:8px">
+            <button onclick="sync()" id="syncBtn">Sync</button>
+            <span class="muted" id="syncStatus">scanned to block —</span>
+            <button class="ghost" style="margin-left:auto" onclick="forgetWallet()">Lock / forget</button>
+          </div>
+          <!-- Manual reorg recovery (audit #19): sync() auto-detects reorgs and self-heals,
+               but this gives the user an explicit recovery path if their balance ever looks
+               wrong — it rolls the scan state back ~200 blocks and re-scans the live branch. -->
+          <div class="row" style="margin-top:8px">
+            <button class="ghost mini" onclick="resyncReorg()" id="resyncBtn" title="Fix the balance if a chain reorg left it wrong: rolls back ~200 blocks and re-scans.">Re-sync (fix balance after reorg)</button>
+          </div>
+        </div>
+        <div class="card glass">
+          <h2>Receive</h2>
+          <div class="muted mono" id="address" onclick="copyAddr()" style="cursor:pointer" title="click to copy"></div>
+        </div>
+        <!-- BACKUP-CONFIRM GATE (audit #2). The first send is blocked until the user
+             re-enters their full recovery phrase exactly, proving they wrote it down.
+             Clearing site data wipes the only copy of the seed; without a verified backup
+             that is irreversible total loss. Once confirmed we set obx_backup_confirmed=1. -->
+        <div class="card glass" id="backupGate">
+          <h2>Confirm your recovery phrase</h2>
+          <div class="danger" style="margin:0 0 12px">
+            <b>Back up before you send.</b> Your 24-word recovery phrase is the <b>only</b> copy of this wallet — it lives only in this browser. If you clear site data (or lose this device) without it, your funds are <b>gone forever, with no recovery</b>. Sending is blocked until you re-type the full phrase to prove you saved it.
+          </div>
+          <label>Re-enter all 24 words, in order, separated by spaces</label>
+          <input id="confirmPhrase" placeholder="word1 word2 … word24" autocomplete="off">
+          <div class="row" style="margin-top:12px"><button onclick="confirmBackup()">Confirm backup &amp; unlock sending</button></div>
+          <div id="backupMsg"></div>
+        </div>
+        <div class="card glass">
+          <h2>Send OBX</h2>
+          <label>Destination address</label><input id="sendDest" placeholder="obx…">
+          <div class="row">
+            <div style="flex:1"><label>Amount (OBX)</label><input id="sendAmt" inputmode="decimal" placeholder="1.0"></div>
+            <div style="flex:1"><label>Fee (OBX)</label><input id="sendFee" inputmode="decimal" value="0.001"></div>
+          </div>
+          <div class="row" style="margin-top:12px"><button id="sendBtn" onclick="send()">Sign &amp; broadcast</button></div>
+          <div id="sendMsg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VAULTS -->
+    <section id="t-vaults" class="hide">
+      <div class="card glass">
+        <h2>Network staking</h2>
+        <div class="row"><div>Total value locked: <b id="tvl">—</b></div><div class="muted">yield pool: <span id="yieldPool">—</span></div></div>
+      </div>
+      <div class="card glass" id="vaultDepositCard">
+        <h2>Stake (deposit)</h2>
+        <div class="row">
+          <div style="flex:1"><label>Amount (OBX)</label><input id="vAmt" inputmode="decimal" placeholder="10"></div>
+          <div style="flex:1"><label>Term</label><select id="vTerm"></select></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button onclick="vaultDeposit()">Stake</button></div>
+        <div id="vDepMsg"></div>
+      </div>
+      <div class="card glass">
+        <h2>Your vaults</h2>
+        <table><thead><tr><th>Vault</th><th>Amount</th><th>Term</th><th></th></tr></thead><tbody id="myVaults"><tr><td colspan="4" class="muted">none yet</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <!-- SWAP -->
+    <section id="t-swap" class="hide">
+      <!-- TOTAL LIQUIDITY -->
+      <div class="card glass" id="liqCard" style="background:linear-gradient(180deg,rgba(34,211,238,.07),rgba(34,211,238,.02));border:1px solid rgba(34,211,238,.25)">
+        <h2>Total liquidity <span class="pill" id="liqTotPill">loading…</span></h2>
+        <div id="liqStatus" class="muted" style="font-size:13px;margin-bottom:6px"></div>
+        <div id="liqPairs" class="row" style="flex-wrap:wrap;gap:8px"></div>
+      </div>
+      <div class="card glass">
+        <h2>Cross-chain swap order book <span class="pill">experimental</span></h2>
+        <div class="muted" style="font-size:13px;margin-bottom:6px">Experimental P2P swap order book (no admin). The OBX leg, order book, and Nano (XNO) signer are real; <b>OBX↔XNO is the working path</b>. OBX↔BTC is currently <b>disabled</b> (no settleable BTC leg yet). Matched-swap execution is an orchestration demo in the <span class="mono">swapd</span> daemon.</div>
+        <div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <div style="flex:0 0 auto"><label>Pair</label><select id="swapPair" onchange="renderSwap()"></select></div>
+          <div style="flex:0 0 auto"><label>Side (vs OBX)</label>
+            <select id="swapSide" onchange="renderSwap()"><option value="">all</option><option value="SELL">SELL OBX</option><option value="BUY">BUY OBX</option></select>
+          </div>
+        </div>
+        <div id="swapMarket" style="margin-bottom:8px;padding:10px 12px;border-radius:8px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);font-size:15px"></div>
+        <div id="swapSummary" class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <div id="swapDepth" style="margin-bottom:8px"></div>
+        <table><thead><tr><th>Order</th><th>Side / Type</th><th>Maker gives</th><th>for</th><th>Rate</th><th>Expiry</th><th></th></tr></thead><tbody id="offers"><tr><td colspan="7" class="muted">loading…</td></tr></tbody></table>
+        <div id="tradeMsg" style="margin-top:6px"></div>
+      </div>
+      <!-- LIVE SWAP-STEP TIMELINE -->
+      <div class="card glass">
+        <h2>Active swaps <span class="pill" id="swapsLivePill">live</span></h2>
+        <div class="muted" style="font-size:13px;margin-bottom:8px">Each in-flight swap and the step it has reached. Polls every 3s.</div>
+        <div id="swapsteps"><div class="muted">no active swaps</div></div>
+      </div>
+      <div class="card glass">
+        <h2>Post an offer</h2>
+        <div class="row">
+          <!-- BTC (mock) intentionally removed: the BTC leg is unsettleable, so the
+               order book (config.SettleableAssets / swapbook Verify) rejects BTC offers.
+               Re-add the <option>BTC (mock)</option> entries once BTC is re-enabled. -->
+          <div style="flex:1"><label>Give asset</label><select id="oGive" onchange="offerHint()"><option>OBX</option><option>XNO</option></select></div>
+          <div style="flex:1"><label>Get asset</label><select id="oGet" onchange="offerHint()"><option>XNO</option><option>OBX</option></select></div>
+        </div>
+        <div class="row">
+          <div style="flex:1"><label>Give amount (atomic)</label><input id="oGiveAmt" inputmode="numeric" placeholder="5000000000000" oninput="offerHint()"></div>
+          <div style="flex:1"><label>Get amount (atomic)</label><input id="oGetAmt" inputmode="numeric" placeholder="50000000" oninput="offerHint()"></div>
+        </div>
+        <div id="offerHint" class="muted" style="font-size:13px;margin-top:6px"></div>
+        <div class="row" style="margin-top:12px"><button onclick="postOffer()">Sign &amp; post offer</button></div>
+        <div id="offerMsg"></div>
+      </div>
+    </section>
+
+    <!-- XNO PROCEEDS -->
+    <section id="t-xno" class="hide">
+      <!-- onboarding: shown once until the operator confirms they backed up the key -->
+      <div class="card glass" id="xnoOnboard">
+        <h2>Your XNO proceeds wallet</h2>
+        <div class="muted" style="font-size:14px;line-height:1.55">
+          When you mine OBX, this node automatically posts OBX→XNO swap offers and <b>sells your OBX for XNO</b>.
+          The XNO you receive lands in a real <b>Nano account derived from your miner seed</b> — it is yours, and it is
+          <b>recoverable anywhere</b> from the recovery key below. Nobody else holds it; no custodian, no admin.
+        </div>
+        <div class="warn" style="margin-top:10px">
+          Backup &amp; withdraw need <b>local / operator access to your own node</b> (loopback or an operator token).
+          The public website can only show your address and balance — it can never reveal or move your funds.
+        </div>
+        <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+          <button onclick="xnoReveal()">Reveal recovery key</button>
+          <span class="muted" style="font-size:12px;align-self:center">…then back it up before continuing.</span>
+        </div>
+        <div style="margin-top:10px">
+          <label>Operator token (only if your node sets OBX_RPC_TOKEN; leave empty on loopback)</label>
+          <input id="xnoOpToken" placeholder="operator bearer token (optional)" autocomplete="off">
+        </div>
+        <div id="xnoRevealBox"></div>
+      </div>
+
+      <div class="card glass">
+        <h2>XNO balance</h2>
+        <div id="xnoMockBanner" class="hide warn" style="margin-bottom:8px">
+          ⚠ <b>Simulated proceeds.</b> This node has no Nano RPC configured (<span class="mono">backend: mock</span>),
+          so balances are not real on-ledger XNO. Start the node with <span class="mono">--nano-rpc</span> to sell for real XNO.
+        </div>
+        <div class="big" id="xnoBalance">— XNO</div>
+        <div class="muted" style="margin-top:6px">incoming (receivable): <b id="xnoReceivable">—</b></div>
+        <div class="row" style="margin-top:8px">
+          <button onclick="loadXNO()" id="xnoRefreshBtn">Refresh</button>
+          <span class="muted" id="xnoStatus" style="align-self:center"></span>
+        </div>
+      </div>
+
+      <div class="card glass">
+        <h2>XNO address</h2>
+        <div class="muted" style="font-size:13px;margin-bottom:6px">Your Nano receive address for swap proceeds (derived from your miner seed):</div>
+        <div class="muted mono" id="xnoAddress" onclick="xnoCopyAddr()" style="cursor:pointer;word-break:break-all" title="click to copy">—</div>
+      </div>
+
+      <div class="card glass">
+        <h2>Withdraw XNO</h2>
+        <div class="muted" style="font-size:13px;margin-bottom:6px">Send proceeds to an external Nano address. Requires local/operator access to your node.</div>
+        <label>Destination (nano_ address)</label><input id="xnoWdDest" placeholder="nano_…">
+        <label>Amount (raw)</label><input id="xnoWdAmt" inputmode="numeric" placeholder="raw (1 XNO = 1e30 raw)">
+        <div class="row" style="margin-top:12px"><button onclick="xnoWithdraw()">Withdraw</button></div>
+        <div id="xnoWdMsg"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Non-custodial: keys are generated and held only in your browser. <b>Back up your recovery phrase:</b> there is no reset.
+    This wallet runs against live Obscura mainnet; the from-scratch crypto has not had an external audit. It stores your phrase in this browser's localStorage for convenience, so treat this hosted wallet as a convenience tool and run your own node for real value.
+    <span id="backend"></span>
+    <div class="mono" id="buildHash" style="margin-top:8px;color:var(--mut);font-size:11px;opacity:.8" title="sha256 of the loaded wallet.wasm — compare against the published build hash">wallet build: verifying…</div>
+  </footer>
+</div>
+
+<script src="/wasm_exec.js" integrity="sha384-PWCs+V4BDf9yY1yjkD/p+9xNEs4iEbuvq+HezAOJiY3XL5GI6VyJXMsvnjiwNbce" crossorigin="anonymous"></script>
+<script>
+const API = "/api/explorer";
+const ATOMIC = 1000000000000n; // 1 OBX = 1e12
+// default vault terms (must match pkg/config defaults)
+const TERMS = [[21600,"30 days · 1%"],[64800,"90 days · 4%"],[262800,"365 days · 20%"]];
+
+async function get(path,extra=""){ const r=await fetch(API+"?path="+path+extra); if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }
+async function post(path,obj){ const r=await fetch(API+"?path="+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(obj)}); const t=await r.text(); if(!r.ok) throw new Error(t||("HTTP "+r.status)); return JSON.parse(t); }
+function el(id){return document.getElementById(id);}
+function msg(id,kind,text){el(id).innerHTML=`<div class="${kind}">${text}</div>`;}
+const OBX_DECIMALS = 12; // AtomicPerCoin = 10^12
+// OBX decimal string -> atomic uint string, via EXACT fixed-point BigInt math (audit #22).
+// No JS float: a sub-micro amount must never silently round to 0, and large values must
+// not lose precision. Returns the atomic-units string, or {error} on bad/too-precise input.
+function obxToAtomic(s){
+  s=(s==null?"":String(s)).trim();
+  if(s===""||!/^[0-9]*\.?[0-9]*$/.test(s)||s===".") return {error:"enter a valid amount"};
+  let [whole,frac=""]=s.split(".");
+  whole=whole||"0";
+  if(frac.length>OBX_DECIMALS) return {error:`too many decimals — OBX has at most ${OBX_DECIMALS} (1 atom = 1e-${OBX_DECIMALS} OBX)`};
+  frac=frac.padEnd(OBX_DECIMALS,"0"); // pad to exactly 12 fractional digits
+  const atoms=BigInt(whole)*(10n**BigInt(OBX_DECIMALS))+BigInt(frac);
+  if(atoms<1n) return {error:`amount too small — must be at least 1 atom (1e-${OBX_DECIMALS} OBX)`};
+  return {atomic:atoms.toString()};
+}
+// atomic-units string -> human OBX string via BigInt only (audit #23): Number()/1e12 loses
+// precision above ~9000 OBX (float53). Compute whole + 12-dec fractional parts exactly,
+// then trim trailing zeros for display.
+function atomicToObx(a){
+  let neg=false; let v;
+  try{ v=BigInt(a); }catch(_){ return String(a); }
+  if(v<0n){ neg=true; v=-v; }
+  const SCALE=10n**BigInt(OBX_DECIMALS);
+  const whole=v/SCALE, frac=v%SCALE;
+  let f=frac.toString().padStart(OBX_DECIMALS,"0").replace(/0+$/,"");
+  return (neg?"-":"")+whole.toString()+(f?"."+f:"");
+}
+
+// ---- seed-at-rest encryption (audit #1) ----
+// The mnemonic must NEVER sit in localStorage as plaintext (any injected script / shared
+// machine could read it and drain the wallet). We keep the decrypted seed only in this
+// module-scoped variable for the session, and persist ONLY an AES-GCM blob keyed by a
+// PBKDF2(SHA-256) stretch of the user's passphrase. The passphrase is separate from, and
+// NOT a substitute for, the 24-word recovery phrase — forgetting it means re-restoring.
+let _seed=null;                       // decrypted mnemonic for THIS session (never persisted plaintext)
+const ENC_KEY="obx_mnemonic_enc";     // encrypted blob in localStorage
+const LEGACY_KEY="obx_mnemonic";      // pre-#1 plaintext key (migrated then deleted)
+const KDF_ITERS=210000;               // PBKDF2-SHA256 rounds (>= 200k)
+function _b64(buf){ const b=new Uint8Array(buf); let s=""; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+function _unb64(s){ const bin=atob(s); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+async function _deriveKey(pass,salt){
+  const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pass),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {name:"PBKDF2",salt,iterations:KDF_ITERS,hash:"SHA-256"},
+    base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function encryptSeed(mnemonic,pass){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await _deriveKey(pass,salt);
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(mnemonic));
+  return {v:1,kdf:"PBKDF2-SHA256",iters:KDF_ITERS,salt:_b64(salt),iv:_b64(iv),ct:_b64(ct)};
+}
+async function decryptSeed(blob,pass){
+  const key=await _deriveKey(pass,_unb64(blob.salt));
+  // wrong passphrase => AES-GCM auth tag fails => decrypt throws (caught by caller).
+  const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:_unb64(blob.iv)},key,_unb64(blob.ct));
+  return new TextDecoder().decode(pt);
+}
+function hasEncryptedWallet(){ return !!localStorage.getItem(ENC_KEY); }
+function hasLegacyWallet(){ return !!localStorage.getItem(LEGACY_KEY); }
+// Prompt for a NEW passphrase (with confirm) and persist the mnemonic as an encrypted blob.
+// Sets _seed for the session. Returns true on success, false if the user cancelled.
+async function setPassphraseAndStore(mnemonic){
+  while(true){
+    const p1=prompt("Set a passphrase to ENCRYPT your wallet in this browser.\n\n⚠ This passphrase is NOT your recovery phrase and is NOT recoverable. If you forget it, you must re-restore from your 24 words. Choose something you'll remember.");
+    if(p1==null) return false;            // cancelled
+    if(p1.length<8){ alert("Passphrase must be at least 8 characters."); continue; }
+    const p2=prompt("Confirm passphrase:");
+    if(p2==null) return false;
+    if(p1!==p2){ alert("Passphrases did not match — try again."); continue; }
+    const blob=await encryptSeed(mnemonic,p1);
+    localStorage.setItem(ENC_KEY,JSON.stringify(blob));
+    localStorage.removeItem(LEGACY_KEY); // never leave plaintext behind
+    _seed=mnemonic;
+    return true;
+  }
+}
+// Prompt for the passphrase and decrypt the stored blob into _seed. Wrong passphrase =>
+// clear error + retry; "Forget" => returns "forget" so the caller offers re-restore.
+async function unlockWallet(){
+  let blob;
+  try{ blob=JSON.parse(localStorage.getItem(ENC_KEY)); }catch(_){ return false; }
+  if(!blob) return false;
+  while(true){
+    const p=prompt("Enter your wallet passphrase to unlock.\n\n(Forgot it? Click Cancel — you can re-restore from your 24-word recovery phrase. The passphrase cannot be recovered.)");
+    if(p==null) return "forget";          // user cancelled — offer re-restore path
+    try{
+      _seed=await decryptSeed(blob,p);
+      return true;
+    }catch(_){
+      if(!confirm("Wrong passphrase. Try again?\n\n(Cancel to re-restore from your recovery phrase instead.)")) return "forget";
+    }
+  }
+}
+// Migrate a legacy plaintext mnemonic to the encrypted blob, then delete the plaintext.
+async function migrateLegacy(){
+  const ph=localStorage.getItem(LEGACY_KEY);
+  if(!ph) return false;
+  alert("Security upgrade: your recovery phrase was stored UNENCRYPTED in this browser. Set a passphrase now to encrypt it. (You can always re-restore from your 24 words.)");
+  const ok=await setPassphraseAndStore(ph); // removes LEGACY_KEY on success
+  if(!ok){ // user declined — keep them safe-ish but don't silently keep plaintext usable
+    alert("Encryption skipped. For your safety the unencrypted phrase will be removed from this browser — re-restore from your 24 words to continue.");
+    localStorage.removeItem(LEGACY_KEY);
+    localStorage.removeItem("obx_state");
+    return false;
+  }
+  return true;
+}
+// Re-attempt unlock from the noWallet screen (e.g. user cancelled at boot, then changed
+// their mind). Loads the wallet on success; leaves the restore path available otherwise.
+async function unlockExisting(){
+  if(!hasEncryptedWallet()){ alert("No encrypted wallet in this browser — create or restore one."); return; }
+  const u=await unlockWallet();
+  if(u===true && _seed){
+    const r=obxRestore(_seed);
+    if(r.error){ alert("Stored seed failed to load: "+r.error); return; }
+    const st=localStorage.getItem("obx_state"); if(st) obxImportState(st);
+    showWallet();
+  }
+}
+
+// ---- trust banner: soften wording when running against YOUR OWN node ----
+// On localhost (the desktop app or a self-hosted node) there is no shared operator,
+// so the privacy caveat doesn't apply; keep the test-chain / seed-backup warning.
+(function(){
+  const b=el("trustBanner"); if(!b) return;
+  const h=location.hostname;
+  if(h==="localhost"||h==="127.0.0.1"||h==="[::1]"||h===""){
+    b.classList.remove("danger"); b.classList.add("warn");
+    b.innerHTML=`<b>Running against your own node.</b> This runs against <b>your own local node</b>, so your activity stays on your machine. The cryptography has not had an external audit and your recovery phrase is encrypted in this browser, so back up your 24 words and understand the risks before committing real value.`;
+    // already self-hosted → the "run your own node" guidance is moot; hide it.
+    const note=el("ownNodeNote"); if(note) note.classList.add("hide");
+  }
+})();
+
+// ---- WASM build authenticity (audit #3b + #4) ----
+// Expected sha384 of /wallet.wasm, base64 (SRI form) and sha256 hex for the visible
+// build line. Recompute after every rebuild:
+//   openssl dgst -sha384 -binary wallet.wasm | base64
+//   shasum -a 256 wallet.wasm | cut -d' ' -f1
+// A <script> tag can't carry SRI for a fetch()+instantiate load, so we verify the bytes
+// here BEFORE instantiating and abort on any mismatch (a swapped binary cannot run).
+const WASM_SHA384_B64 = "HWF9g/owcHzZvknuJAm4EFkE8YcVCUx3vuTlnhEjVPx4MPjV7UzX8lCfcRDcAWtu";
+const WASM_SHA256_HEX = "400019796cd45b898d5905e978344099dc1e7364928bf2556d1c0fcd4a18d3a2";
+function b64FromBytes(buf){
+  const b=new Uint8Array(buf); let s=""; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s);
+}
+async function fetchVerifiedWasm(url){
+  const buf=await (await fetch(url)).arrayBuffer();
+  const digest=await crypto.subtle.digest("SHA-384",buf);
+  const got=b64FromBytes(digest);
+  if(got!==WASM_SHA384_B64) throw new Error(`wallet.wasm hash mismatch — refusing to run. expected sha384 ${WASM_SHA384_B64} got ${got}. Do NOT enter your recovery phrase; the binary may be tampered.`);
+  return buf;
+}
+
+// ---- single-active-tab lock (audit #21) ----
+// Two tabs sharing one seed don't see each other's input reservations, so both could spend
+// the same outputs (double-spend / failed broadcasts). We elect ONE active tab via a
+// localStorage heartbeat: each tab writes {id,ts} every TAB_BEAT ms; a tab is "owner" if its
+// id holds the slot or the slot's heartbeat is stale (owner tab crashed). Non-owner tabs
+// disable Send. BroadcastChannel just nudges peers to re-evaluate immediately. No hard lock:
+// if the active tab dies, its heartbeat goes stale within TAB_STALE and another tab takes over.
+const TAB_LOCK_KEY="obx_active_tab";
+const TAB_BEAT=2000, TAB_STALE=6000; // beat 2s; consider owner dead after 6s of silence
+const TAB_ID=(Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+let _isTabOwner=true;
+const _tabChan=(typeof BroadcastChannel!=="undefined")?new BroadcastChannel("obx_wallet_tabs"):null;
+function _readTabSlot(){ try{ return JSON.parse(localStorage.getItem(TAB_LOCK_KEY)||"null"); }catch(_){ return null; } }
+function tabBeat(){
+  const now=Date.now(); const slot=_readTabSlot();
+  // claim the slot if it's empty, stale (crashed owner), or already ours.
+  if(!slot || !slot.id || (now-(slot.ts||0))>TAB_STALE || slot.id===TAB_ID){
+    localStorage.setItem(TAB_LOCK_KEY,JSON.stringify({id:TAB_ID,ts:now}));
+    if(!_isTabOwner){ _isTabOwner=true; refreshBackupGate(); }
+  }else if(_isTabOwner){
+    // another live tab owns it now
+    _isTabOwner=false; refreshBackupGate();
+  }
+}
+function tabIsOwner(){ return _isTabOwner; }
+function initTabLock(){
+  tabBeat();
+  setInterval(tabBeat,TAB_BEAT);
+  // re-evaluate promptly when another tab updates the slot.
+  window.addEventListener("storage",e=>{ if(e.key===TAB_LOCK_KEY){ const s=_readTabSlot(); if(s&&s.id&&s.id!==TAB_ID&&_isTabOwner&&(Date.now()-(s.ts||0))<=TAB_STALE){ _isTabOwner=false; refreshBackupGate(); } } });
+  if(_tabChan) _tabChan.onmessage=()=>{ const s=_readTabSlot(); if(s&&s.id&&s.id!==TAB_ID&&_isTabOwner&&(Date.now()-(s.ts||0))<=TAB_STALE){ _isTabOwner=false; refreshBackupGate(); } };
+  // release the slot on close so a sibling tab can take over instantly.
+  window.addEventListener("beforeunload",()=>{ const s=_readTabSlot(); if(s&&s.id===TAB_ID) localStorage.removeItem(TAB_LOCK_KEY); if(_tabChan) try{_tabChan.postMessage("bye");}catch(_){} });
+}
+
+// ---- boot WASM ----
+let ready=false;
+(async function(){
+  try{
+    const go=new Go();
+    // Always fetch+verify the bytes ourselves (instantiateStreaming would skip the hash
+    // check), then instantiate the verified buffer.
+    const buf=await fetchVerifiedWasm("/wallet.wasm");
+    const res=await WebAssembly.instantiate(buf,go.importObject);
+    go.run(res.instance);
+    ready=true;
+    // show the verified build hash so the user can compare it to a published value
+    el("buildHash").textContent="wallet build: sha256 "+WASM_SHA256_HEX;
+    el("boot").classList.add("hide"); el("app").classList.remove("hide");
+    // populate term dropdown
+    el("vTerm").innerHTML=TERMS.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join("");
+    // auto-restore from localStorage — seed is now ENCRYPTED at rest (audit #1).
+    // Legacy plaintext wallets are migrated to the encrypted blob on first load.
+    if(hasLegacyWallet() && !hasEncryptedWallet()){ await migrateLegacy(); }
+    if(hasEncryptedWallet()){
+      const u=await unlockWallet();
+      if(u===true && _seed){
+        const r=obxRestore(_seed);
+        if(!r.error){ const st=localStorage.getItem("obx_state"); if(st) obxImportState(st); showWallet(); }
+        else { alert("Stored seed failed to load: "+r.error); }
+      } else if(u==="forget"){
+        // forgotten passphrase must never be a hard lockout: offer re-unlock OR re-restore.
+        el("unlockBtn").classList.remove("hide"); // explicit "try unlock again" affordance
+        alert("Wallet locked. Click 'Unlock existing wallet' to try your passphrase again, or restore from your 24-word recovery phrase below (which replaces the encrypted copy in this browser).");
+        // leave the noWallet screen visible; user unlocks or restores via the phrase input.
+      }
+    }
+    renderMyVaults();
+    initTabLock(); // elect single active tab; disables Send in duplicate tabs
+  }catch(e){ el("boot").innerHTML=`<div class="err">Failed to load wallet engine: ${e}</div>`; }
+})();
+
+// ---- tabs ----
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); t.classList.add("on");
+  for(const s of ["wallet","vaults","swap","xno"]) el("t-"+s).classList.toggle("hide", s!==t.dataset.tab);
+  if(t.dataset.tab==="vaults") loadVaults();
+  if(t.dataset.tab==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); } else { stopSwapsPoll(); }
+  if(t.dataset.tab==="xno"){ xnoInitOnboard(); loadXNO(); }
+});
+
+// ---- wallet ----
+async function createWallet(){
+  const r=obxGenerate(); if(r.error) return msg("newSeed","err",r.error);
+  // encrypt the seed at rest (audit #1): prompt a passphrase, store ONLY the AES-GCM blob.
+  const ok=await setPassphraseAndStore(r.mnemonic);
+  if(!ok) return msg("newSeed","err","wallet not created — a passphrase is required to encrypt your seed");
+  localStorage.removeItem("obx_state");
+  localStorage.removeItem("obx_backup_confirmed"); // new seed must be re-confirmed before sending
+  el("newSeed").innerHTML=`<div class="warn">Write down your recovery phrase — it is the ONLY way to restore this wallet (your passphrase only unlocks this browser and is NOT recoverable):</div><div class="seedbox">${r.mnemonic}</div><div class="row"><button onclick="showWallet()">I saved it — continue</button></div>`;
+}
+function restoreWallet(){
+  const ph=normPhrase(el("restorePhrase").value);
+  // word-count guard (audit #5): a 12-vs-24 paste mismatch otherwise silently derives a
+  // DIFFERENT wallet. Reject anything that isn't exactly 12 or 24 words up front.
+  const words=ph?ph.split(" "):[];
+  if(words.length!==12 && words.length!==24){
+    return msg("newSeed","err",`recovery phrase must be 12 or 24 words — you entered ${words.length}. Check for missing/extra/duplicated words.`);
+  }
+  const r=obxRestore(ph);
+  if(r.error) return msg("newSeed","err",r.error);
+  // Show the DERIVED address and require the user to confirm it matches their record
+  // BEFORE the wallet is usable for sending (audit #5). A wrong-but-valid phrase derives a
+  // valid-but-different wallet; funds sent from/to the wrong wallet would be lost.
+  el("newSeed").innerHTML=`
+    <div class="warn" style="margin-top:10px">Confirm this is YOUR wallet before using it. A different (but still valid) phrase derives a <b>different</b> address — verify it matches the address you recorded.</div>
+    <label>Derived OBX address</label>
+    <div class="seedbox mono" style="border-style:solid" id="restoreDerivedAddr">${r.address}</div>
+    <div class="row" style="margin-top:10px">
+      <button onclick="confirmRestore('${ph.replace(/'/g,"")}')">This is my address — open wallet</button>
+      <button class="ghost" onclick="el('newSeed').innerHTML='';el('restorePhrase').value=''">Cancel</button>
+    </div>`;
+}
+async function confirmRestore(ph){
+  // encrypt the restored seed at rest (audit #1) before it touches localStorage.
+  const ok=await setPassphraseAndStore(ph);
+  if(!ok) return msg("newSeed","err","restore cancelled — a passphrase is required to encrypt your seed");
+  localStorage.removeItem("obx_state");
+  // the user just retyped + visually confirmed the phrase/address — count backup as confirmed.
+  localStorage.setItem("obx_backup_confirmed","1");
+  el("newSeed").innerHTML="";
+  showWallet();
+}
+function showWallet(){
+  el("noWallet").classList.add("hide"); el("haveWallet").classList.remove("hide");
+  refreshInfo(); refreshBackupGate();
+}
+// ---- backup-confirm gate (audit #2) ----
+const BACKUP_CONFIRMED_KEY="obx_backup_confirmed";
+function backupConfirmed(){ return localStorage.getItem(BACKUP_CONFIRMED_KEY)==="1"; }
+// normalize a phrase for comparison: lowercase, collapse whitespace.
+function normPhrase(s){ return (s||"").trim().toLowerCase().replace(/\s+/g," "); }
+function refreshBackupGate(){
+  const ok=backupConfirmed();
+  el("backupGate").classList.toggle("hide", ok);
+  // Send is enabled only when the backup is confirmed AND this is the active tab (audit #21).
+  const owner=tabIsOwner();
+  const b=el("sendBtn");
+  if(b){
+    b.disabled=!ok||!owner;
+    b.title=!owner?"This wallet is open in another tab — Send is disabled here to prevent double-spends.":(ok?"":"Confirm your recovery phrase first (back up your wallet).");
+  }
+  // surface the multi-tab state to the user near the Send box.
+  const sm=el("sendMsg");
+  if(sm){
+    if(!owner) sm.innerHTML=`<div class="warn">⚠ Wallet is open in another tab. Sending is disabled in this tab to avoid double-spending. Close the other tab (or wait a few seconds if it crashed) to send from here.</div>`;
+    else if(sm.querySelector(".warn") && /another tab/.test(sm.textContent)) sm.innerHTML="";
+  }
+}
+function confirmBackup(){
+  // compare against the in-memory session seed (audit #1) — the plaintext is no longer
+  // in localStorage; _seed was set on create/restore/unlock.
+  const stored=normPhrase(_seed);
+  if(!stored){ return msg("backupMsg","err","no unlocked wallet seed in this session — reload and unlock first"); }
+  const entered=normPhrase(el("confirmPhrase").value);
+  if(entered!==stored){ return msg("backupMsg","err","that does not match your recovery phrase — check the words and order"); }
+  localStorage.setItem(BACKUP_CONFIRMED_KEY,"1");
+  el("confirmPhrase").value="";
+  msg("backupMsg","ok","Backup confirmed ✓ — sending unlocked.");
+  refreshBackupGate();
+}
+function refreshInfo(){
+  const i=obxInfo(); if(i.error) return;
+  el("address").textContent=i.address;
+  // format the balance from the atomic-unit field via BigInt (audit #23) — Number()/1e12
+  // loses precision above ~9000 OBX. Fall back to the wasm-preformatted string if needed.
+  el("balance").textContent=(i.balance!=null?atomicToObx(i.balance):i.balance_obx)+" OBX";
+  el("syncStatus").textContent="scanned to block "+i.last_scanned;
+}
+function copyAddr(){ navigator.clipboard?.writeText(el("address").textContent); }
+function forgetWallet(){ if(confirm("Forget this wallet from this browser? Make sure you have your recovery phrase (a forgotten passphrase is recovered by re-restoring from the 24 words).")){ _seed=null; localStorage.removeItem(ENC_KEY); localStorage.removeItem(LEGACY_KEY); localStorage.removeItem("obx_state"); localStorage.removeItem("obx_backup_confirmed"); location.reload(); } }
+
+// ---- reorg detection + recovery (audit #19) ----
+// Reorgs are bounded, so we only remember block hashes for the recent tail. We persist
+// {height: hash} and prune below (tip - REORG_DEPTH). On each sync, before scanning new
+// blocks, we re-verify our last-scanned block's hash against the node; a mismatch means a
+// reorg, and we walk back to the fork point, obxScanUndo() it, drop stale hashes, and let
+// the forward scan re-apply the new branch.
+const REORG_HASHES_KEY="obx_block_hashes";
+const REORG_DEPTH=200; // max reorg we auto-recover; also the hash-retention window
+function loadHashes(){ try{ return JSON.parse(localStorage.getItem(REORG_HASHES_KEY)||"{}")||{}; }catch(_){ return {}; } }
+function saveHashes(m){ try{ localStorage.setItem(REORG_HASHES_KEY,JSON.stringify(m)); }catch(_){} }
+function pruneHashes(m,tip){ const lo=tip-REORG_DEPTH; for(const k in m){ if(Number(k)<lo) delete m[k]; } return m; }
+// node's block hash at height h (via the explorer block view, which returns {hash,prev}).
+async function nodeHashAt(h){
+  try{ const b=await get("block","&height="+h); return b&&b.hash?String(b.hash):null; }catch(_){ return null; }
+}
+// Detect a reorg at/under `lastScanned`; if found, undo to the fork point and return the
+// height to resume forward-scanning from. Returns null (no reorg) or the resume height.
+async function detectReorg(lastScanned,hashes){
+  if(lastScanned<=0) return null;
+  const rec=hashes[lastScanned];
+  if(rec==null) return null; // we never recorded this height (fresh state) — nothing to compare
+  const nodeH=await nodeHashAt(lastScanned);
+  if(nodeH==null||nodeH===rec) return null; // node agrees (or unreachable) — no reorg
+  // mismatch → walk back to the fork point F where node-hash === recorded-hash.
+  let F=-1;
+  const floor=Math.max(0,lastScanned-REORG_DEPTH);
+  for(let h=lastScanned-1; h>=floor; h--){
+    const r=hashes[h]; if(r==null) continue; // gap in our record — keep walking
+    const nh=await nodeHashAt(h);
+    if(nh!=null&&nh===r){ F=h; break; }
+  }
+  if(F<0){ // no common ancestor within bound → safe deep re-scan from the floor
+    obxScanUndo(floor+1); // undo everything at/after floor+1; cursor returns to `floor`
+    for(const k in hashes){ if(Number(k)>floor) delete hashes[k]; }
+    saveHashes(hashes);
+    return floor;
+  }
+  obxScanUndo(F+1); // un-spend orphaned spends, drop outputs from the orphaned suffix
+  for(const k in hashes){ if(Number(k)>F) delete hashes[k]; } // recorded hashes above F are stale
+  saveHashes(hashes);
+  return F; // forward scan resumes at F+1 (loop starts at from+1)
+}
+async function sync(){
+  el("syncBtn").disabled=true;
+  try{
+    const {height}=await get("height");
+    const hashes=loadHashes();
+    let from=parseInt(obxInfo().last_scanned||"0",10);
+    // before scanning forward, check the last-scanned block still matches the node (audit #19).
+    const resume=await detectReorg(from,hashes);
+    if(resume!=null){
+      from=resume;
+      el("syncStatus").textContent=`reorg detected — rolled back to block ${from}, re-scanning…`;
+    }
+    // SCAN PRIVACY (audit #17): we fetch EVERY block from the cursor to the tip in order —
+    // identical to what any full node does — so the request pattern reveals only "a client
+    // is syncing", not which heights matter to this wallet or its age (no selective/relevant
+    // fetches that could fingerprint balances). We fetch in BATCHES via the node's /blocks
+    // range endpoint (rawblocks), which keeps the same sequential, balance-agnostic pattern
+    // while cutting round-trips ~256x (so a sync no longer floods the shared proxy / rate
+    // limit). For full privacy, run your own node (the trust banner) so these never reach a
+    // shared operator. a freshly-restored wallet starts at 0; genesis (height 0) has nothing.
+    const BATCH=256;
+    for(let h=from+1; h<=height;){
+      const count=Math.min(BATCH, height-h+1);
+      const {blocks}=await get("rawblocks","&from="+h+"&count="+count);
+      if(!blocks||!blocks.length) break; // tip reached (or pruned body)
+      for(let i=0;i<blocks.length;i++){
+        const bh_h=h+i;
+        obxScanBlockHex(blocks[i]);
+        // record the block hash for the recent tail so future syncs can detect a reorg here.
+        if(bh_h>height-REORG_DEPTH){ const bh=await nodeHashAt(bh_h); if(bh) hashes[bh_h]=bh; }
+      }
+      h+=blocks.length;
+      el("syncStatus").textContent=`scanning ${Math.min(h-1,height)}/${height}…`;
+    }
+    pruneHashes(hashes,height); saveHashes(hashes);
+    const st=obxExportState(); if(st.state) localStorage.setItem("obx_state",st.state);
+    refreshInfo();
+  }catch(e){ el("syncStatus").textContent="sync error: "+e.message; }
+  el("syncBtn").disabled=false;
+}
+// Manual recovery path (audit #19): explicit "fix my balance" button. Rolls back ~200
+// blocks unconditionally and re-scans, recovering even if our recorded hashes were lost.
+async function resyncReorg(){
+  const from=parseInt(obxInfo().last_scanned||"0",10);
+  const back=Math.max(0,from-REORG_DEPTH);
+  if(!confirm(`Re-sync to fix balance after a reorg?\n\nThis rolls the wallet's scan state back to block ${back} and re-scans forward from the live chain. It is safe (it does not touch your keys) but may take a moment.`)) return;
+  el("resyncBtn").disabled=true; el("syncBtn").disabled=true;
+  try{
+    obxScanUndo(back+1); // undo everything at/after back+1; cursor returns to `back`
+    const hashes=loadHashes(); for(const k in hashes){ if(Number(k)>=back+1) delete hashes[k]; } saveHashes(hashes);
+    const st=obxExportState(); if(st.state) localStorage.setItem("obx_state",st.state);
+    refreshInfo();
+    el("syncStatus").textContent=`rolled back to block ${back} — re-scanning…`;
+  }catch(e){ el("syncStatus").textContent="re-sync error: "+e.message; }
+  el("resyncBtn").disabled=false; el("syncBtn").disabled=false;
+  await sync();
+}
+
+async function send(){
+  if(!tabIsOwner()){ refreshBackupGate(); return msg("sendMsg","err","This wallet is open in another tab — sending is disabled here to prevent double-spends. Use the active tab, or close it and retry."); }
+  if(!backupConfirmed()){ refreshBackupGate(); return msg("sendMsg","err","Sending is locked until you confirm your recovery phrase above — back up your wallet first."); }
+  msg("sendMsg","muted","building…");
+  try{
+    const dest=el("sendDest").value.trim();
+    const amtR=obxToAtomic(el("sendAmt").value); if(amtR.error) return msg("sendMsg","err","amount: "+amtR.error);
+    const feeR=obxToAtomic(el("sendFee").value); if(feeR.error) return msg("sendMsg","err","fee: "+feeR.error);
+    const amt=amtR.atomic, fee=feeR.atomic;
+    const {height}=await get("height");
+    const r=obxBuildSend(dest,amt,fee,String(height));
+    if(r.error) return msg("sendMsg","err",r.error);
+    // The build reserved these inputs locally. If the broadcast FAILS, release the
+    // reservation (audit #20) so an immediate retry doesn't see spurious "insufficient
+    // funds". On success the reservation is consumed by the spend, so we must NOT release.
+    try{
+      const s=await post("submittx",{tx:r.txhex});
+      msg("sendMsg","ok","Broadcast ✓ txid "+s.txid);
+      setTimeout(sync,800);
+    }catch(submitErr){
+      try{ obxReleaseReservation(r.txhex); }catch(_){}
+      msg("sendMsg","err",submitErr.message);
+    }
+  }catch(e){ msg("sendMsg","err",e.message); }
+}
+
+// ---- vaults ----
+async function loadVaults(){
+  try{ const v=await get("vaults"); el("tvl").textContent=v.tvl_obx+" OBX"; el("yieldPool").textContent=(v.yield_pool_obx||"—")+" OBX"; }catch(e){}
+}
+async function vaultDeposit(){
+  msg("vDepMsg","muted","building…");
+  try{
+    const amtR=obxToAtomic(el("vAmt").value); if(amtR.error) return msg("vDepMsg","err","amount: "+amtR.error);
+    const amt=amtR.atomic; const term=el("vTerm").value;
+    const fee=obxToAtomic("0.01").atomic;
+    const {height}=await get("height");
+    const r=obxBuildVaultDeposit(amt,term,fee,String(height));
+    if(r.error) return msg("vDepMsg","err",r.error);
+    const s=await post("submittx",{tx:r.txhex});
+    // remember the vault id so we can claim later
+    const mine=JSON.parse(localStorage.getItem("obx_vaults")||"[]");
+    mine.push({id:r.vault_id,amount:amt,term:term});
+    localStorage.setItem("obx_vaults",JSON.stringify(mine));
+    msg("vDepMsg","ok","Staked ✓ txid "+s.txid);
+    renderMyVaults(); setTimeout(sync,800);
+  }catch(e){ msg("vDepMsg","err",e.message); }
+}
+function renderMyVaults(){
+  const mine=JSON.parse(localStorage.getItem("obx_vaults")||"[]");
+  el("myVaults").innerHTML = mine.length? mine.map((v,i)=>`<tr>
+    <td class="mono">${v.id.slice(0,10)}…</td><td>${atomicToObx(v.amount)} OBX</td><td>${v.term}</td>
+    <td><button class="ghost" onclick="vaultClaim(${i})">Claim</button></td></tr>`).join("")
+    : `<tr><td colspan="4" class="muted">none yet</td></tr>`;
+}
+async function vaultClaim(i){
+  const mine=JSON.parse(localStorage.getItem("obx_vaults")||"[]"); const v=mine[i]; if(!v) return;
+  try{
+    const fee=obxToAtomic("0.01").atomic;
+    const r=obxBuildVaultClaim(v.id,v.amount,String(v.term),fee);
+    if(r.error) return alert(r.error);
+    const s=await post("submittx",{tx:r.txhex});
+    mine.splice(i,1); localStorage.setItem("obx_vaults",JSON.stringify(mine)); renderMyVaults();
+    alert("Claimed ✓ txid "+s.txid); setTimeout(sync,800);
+  }catch(e){ alert(e.message); }
+}
+
+// ---- swap ----
+const DEC={OBX:12,XNO:12,BTC:8};
+// Maker/taker OBX swap fee (audit BUG-3): not exposed in any proxied /offers|/liquidity|
+// /swaps response, so we surface the documented default here. Mirrors pkg/rpc swapFee
+// (default 0.001 OBX). Shown in the post-offer hint and the take confirm dialog so a taker
+// sees the fee they implicitly pay.
+const SWAP_FEE_OBX="0.001";
+// SIDE relative to OBX: maker giving OBX is SELLing OBX; maker getting OBX is BUYing OBX.
+function sideOf(o){
+  if(o.give_asset==="OBX") return "SELL";
+  if(o.get_asset==="OBX") return "BUY";
+  return "";
+}
+function sideLabel(o){
+  const s=sideOf(o);
+  if(s==="SELL") return `<span class="pill" style="background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.4)">SELL OBX</span>`;
+  if(s==="BUY")  return `<span class="pill" style="background:rgba(74,222,128,.18);border-color:rgba(74,222,128,.4)">BUY OBX</span>`;
+  return `<span class="pill">${o.give_asset}→${o.get_asset}</span>`;
+}
+// these are resting limit offers; taking via the take/quote path executes market-style.
+function typeLabel(){ return `<span class="muted" style="font-size:12px">limit · take=market</span>`; }
+function fmtExpiry(o){
+  const e=Number(o.expiry); if(!isFinite(e)||e<=0) return "—";
+  const dt=e-Math.floor(Date.now()/1000);
+  if(dt<=0) return `<span class="err">expired</span>`;
+  if(dt<3600) return Math.round(dt/60)+"m";
+  if(dt<86400) return Math.round(dt/3600)+"h";
+  return Math.round(dt/86400)+"d";
+}
+function fmtAtomic(a,asset){
+  const d=DEC[asset]; const n=Number(a);
+  if(d===undefined||!isFinite(n)) return String(a);
+  const h=n/(10**d);
+  return h.toLocaleString("en-US",{maximumFractionDigits:6})+(h<1e6?"":"");
+}
+// rate for an offer: human (asset-decimal-adjusted) when both assets known, else raw atomic ratio.
+function offerRate(o){
+  const g=Number(o.give_amount), r=Number(o.get_amount);
+  if(g<=0) return {rate:0,human:false};
+  if(DEC[o.give_asset]!==undefined && DEC[o.get_asset]!==undefined){
+    const hg=g/(10**DEC[o.give_asset]), hr=r/(10**DEC[o.get_asset]);
+    if(hg>0) return {rate:hr/hg,human:true};
+  }
+  return {rate:r/g,human:false};
+}
+function fmtRate(o){ const x=offerRate(o); return x.rate?x.rate.toPrecision(6)+(x.human?"":" raw"):"—"; }
+// depthBars: cumulative-Σ-give horizontal bars for a pair's offers sorted by rate.
+function depthBars(rows,w=320){
+  if(!rows.length) return "";
+  const sorted=rows.slice().sort((a,b)=>offerRate(a).rate-offerRate(b).rate);
+  let cum=0; const cums=sorted.map(o=>cum+=Number(o.give_amount));
+  const mx=cum||1, bh=14, gap=4, h=sorted.length*(bh+gap)+gap;
+  const bars=sorted.map((o,i)=>{
+    const bw=Math.max(2,(cums[i]/mx)*(w-4));
+    const y=gap+i*(bh+gap);
+    return `<rect x="2" y="${y}" width="${bw.toFixed(1)}" height="${bh}" rx="2" fill="#22d3ee" fill-opacity="0.45"/>`+
+           `<text x="6" y="${(y+bh-3)}" font-size="10" fill="#cbd5e1">${fmtRate(o)}</text>`;
+  }).join("");
+  return `<svg width="${w}" height="${h}" style="display:block">${bars}</svg>`;
+}
+let _swapParsed=[];
+// best (lowest) human-adjusted rate + liquidity for a give→get pair, from cached _swapParsed.
+function marketFor(give,get){
+  let n=0,liq=0,best=Infinity,human=true;
+  for(const o of _swapParsed){
+    if(o.give_asset!==give||o.get_asset!==get) continue;
+    const rt=offerRate(o); if(!rt.rate) continue;
+    n++; liq+=Number(o.give_amount); human=human&&rt.human;
+    if(rt.rate<best) best=rt.rate;
+  }
+  return n?{n,liq,rate:best,human}:null;
+}
+async function loadOffers(){
+  try{
+    const {offers}=await get("offers");
+    const parsed=(offers||[]).map(obxParseOffer).filter(o=>!o.error);
+    _swapParsed=parsed;
+    if(!parsed.length){
+      el("offers").innerHTML=`<tr><td colspan="7" class="muted">no open offers</td></tr>`;
+      el("swapSummary").innerHTML=""; el("swapDepth").innerHTML="";
+      el("swapPair").innerHTML=`<option value="">all</option>`;
+      if(el("swapMarket")) el("swapMarket").innerHTML=`<b>Market:</b> <span class="muted">no market yet</span>`;
+      offerHint();
+      return;
+    }
+    // per-pair summary chips
+    const buckets={};
+    for(const o of parsed){
+      const pair=o.give_asset+"→"+o.get_asset;
+      const b=buckets[pair]||(buckets[pair]={n:0,liq:0,get:0,best:Infinity});
+      b.n++; b.liq+=Number(o.give_amount); b.get+=Number(o.get_amount);
+      const rt=offerRate(o); if(rt.rate&&rt.rate<b.best) b.best=rt.rate;
+    }
+    el("swapSummary").innerHTML=Object.entries(buckets).map(([p,b])=>
+      `<span class="pill">${p} · ${b.n} offer${b.n>1?"s":""} · Σ ${b.liq.toPrecision(6)} · best ${isFinite(b.best)?b.best.toPrecision(6):"—"}</span>`
+    ).join("");
+    // pair selector
+    const pairs=Object.keys(buckets);
+    const cur=el("swapPair").value;
+    el("swapPair").innerHTML=`<option value="">all</option>`+pairs.map(p=>`<option value="${p}">${p}</option>`).join("");
+    if(pairs.includes(cur)) el("swapPair").value=cur;
+    renderSwap();
+    offerHint();
+  }catch(e){ el("offers").innerHTML=`<tr><td colspan="4" class="err">${e.message}</td></tr>`; }
+}
+function renderSwap(){
+  const sel=el("swapPair").value;
+  // prominent market-rate banner for the selected pair
+  const mb=el("swapMarket");
+  if(mb){
+    if(!sel){
+      mb.innerHTML=`<b>Market</b> · select a pair above to see the live rate`;
+    }else{
+      const [g,gt]=sel.split("→");
+      const m=marketFor(g,gt);
+      mb.innerHTML=m
+        ? `<b>Market:</b> 1 ${g} ≈ ${m.rate.toPrecision(6)} ${gt}${m.human?"":" (raw)"} `+
+          `<span class="muted" style="font-size:13px">· ${m.n} offer${m.n>1?"s":""} · Σ ${m.liq.toPrecision(6)} ${g}</span>`
+        : `<b>Market:</b> <span class="muted">no market yet for ${sel}</span>`;
+    }
+  }
+  const sideF=el("swapSide")?el("swapSide").value:"";
+  const rows=_swapParsed.filter(o=>(!sel||(o.give_asset+"→"+o.get_asset)===sel)&&(!sideF||sideOf(o)===sideF));
+  rows.sort((a,b)=>{
+    const ka=a.give_asset+a.get_asset, kb=b.give_asset+b.get_asset;
+    if(ka!==kb) return ka<kb?-1:1;
+    return offerRate(a).rate-offerRate(b).rate;
+  });
+  el("offers").innerHTML=rows.length?rows.map(o=>{
+    const idc=o.id?o.id.slice(0,10)+"…":"open";
+    const giveH=`<span class="mono">${fmtAtomic(o.give_amount,o.give_asset)}</span> <span class="pill">${o.give_asset}</span>`;
+    // The "for" (get) amount was previously omitted — the user could see the asset but
+    // not HOW MUCH they'd receive. give/get are 12-dec offer-units; fmtAtomic renders them.
+    const getH=`<span class="mono">${fmtAtomic(o.get_amount,o.get_asset)}</span> <span class="pill">${o.get_asset}</span>`;
+    const recvStr=`${fmtAtomic(o.give_amount,o.give_asset)} ${o.give_asset}`;
+    const payStr=`${fmtAtomic(o.get_amount,o.get_asset)} ${o.get_asset}`;
+    const take=o.id?`<button class="mini" onclick="takeOffer('${o.id}',${JSON.stringify(recvStr)},${JSON.stringify(payStr)})">Take / Trade</button>`:`<span class="muted" style="font-size:12px">—</span>`;
+    return `<tr><td class="mono" title="${o.id||'open'}">${idc}</td><td>${sideLabel(o)}<br>${typeLabel()}</td><td>${giveH}</td><td>${getH}</td><td>${fmtRate(o)}</td><td>${fmtExpiry(o)}</td><td>${take}</td></tr>`;
+  }).join(""):`<tr><td colspan="7" class="muted">no open offers for this filter</td></tr>`;
+  el("swapDepth").innerHTML=sel?depthBars(rows):"";
+}
+async function postOffer(){
+  msg("offerMsg","muted","grinding PoW + signing…");
+  try{
+    const give=el("oGive").value, get_=el("oGet").value;
+    if(give===get_) return msg("offerMsg","err","give and get must differ");
+    const expiry=Math.floor(Date.now()/1000)+3600;
+    const r=obxBuildOffer(give,get_,el("oGiveAmt").value||"0",el("oGetAmt").value||"0",String(expiry));
+    if(r.error) return msg("offerMsg","err",r.error);
+    const s=await post("offer",{offer:r.offerhex});
+    msg("offerMsg","ok","Posted ✓ offer "+(s.offer_id||"").slice(0,12)+"…");
+    loadOffers();
+  }catch(e){ msg("offerMsg","err",e.message); }
+}
+// live market-rate hint at the point of posting an offer: shows market rate for the
+// chosen give→get pair and the estimated get for the entered give amount.
+function offerHint(){
+  const h=el("offerHint"); if(!h) return;
+  const give=el("oGive").value.replace(" (mock)",""), get_=el("oGet").value.replace(" (mock)","");
+  if(give===get_){ h.innerHTML=`<span class="err">give and get must differ</span>`; return; }
+  const feeNote=` · <b>maker fee ${SWAP_FEE_OBX} OBX</b>`; // audit BUG-3: surface the swap fee
+  const m=marketFor(give,get_);
+  if(!m){ h.innerHTML=`Market: <b>no market yet</b> for ${give}→${get_} — you'd be the first maker.`+feeNote; return; }
+  let s=`Market: 1 ${give} ≈ ${m.rate.toPrecision(6)} ${get_}${m.human?"":" (raw)"} · ${m.n} offer${m.n>1?"s":""}`;
+  const ga=Number(el("oGiveAmt").value);
+  if(ga>0){
+    const dg=DEC[give], dr=DEC[get_];
+    if(dg!==undefined&&dr!==undefined){
+      const estGet=(ga/(10**dg))*m.rate*(10**dr);
+      s+=` · giving ${ga} ${give} ⇒ ≈ ${estGet.toLocaleString("en-US",{maximumFractionDigits:0})} ${get_} atomic at market`;
+    }
+  }
+  h.innerHTML=s+feeNote;
+}
+
+// ---- total liquidity panel (GET /liquidity, fields guarded) ----
+async function loadLiquidity(){
+  const pill=el("liqTotPill"), pairsEl=el("liqPairs"), st=el("liqStatus");
+  try{
+    const d=await get("liquidity")||{};
+    const pairs=Array.isArray(d.pairs)?d.pairs:[];
+    pill.textContent=`${d.total_offers!=null?d.total_offers:pairs.reduce((a,p)=>a+(p.offers||0),0)} offers · ${d.total_makers!=null?d.total_makers+" makers":"—"}`;
+    if(!pairs.length){ pairsEl.innerHTML=`<span class="muted">no liquidity reported</span>`; }
+    else pairsEl.innerHTML=pairs.map(p=>{
+      const name=p.pair||((p.give_asset||"?")+"/"+(p.get_asset||"?"));
+      const tg=p.total_give!=null?fmtAtomic(p.total_give,p.give_asset):"—";
+      const tge=p.total_get!=null?fmtAtomic(p.total_get,p.get_asset):"—";
+      const best=p.best_rate!=null?Number(p.best_rate).toPrecision(6):"—";
+      return `<span class="pill" style="font-size:13px;padding:8px 12px">${name} · ${p.offers!=null?p.offers:"—"} offers · Σ ${tg} ${p.give_asset||""} ⇄ Σ ${tge} ${p.get_asset||""} · best ${best}</span>`;
+    }).join("");
+  }catch(e){
+    pill.textContent="—";
+    pairsEl.innerHTML=`<span class="muted">/liquidity unavailable — falling back to order book</span>`;
+  }
+  // auto-liquidity bot status (optional endpoint)
+  try{
+    const a=await get("autoliquidity");
+    if(a&&typeof a==="object"){
+      const on=a.enabled!=null?a.enabled:a.active;
+      st.innerHTML=`Auto-liquidity: <b>${on?"on":"off"}</b>`+(a.offers!=null?` · ${a.offers} bot offers`:"")+(a.pair?` · ${a.pair}`:"");
+    } else st.innerHTML="";
+  }catch(_){ st.innerHTML=""; }
+}
+
+// ---- trade: take an offer (POST /swaps/take {offer_id}) ----
+// recvStr / payStr are pre-formatted "<amount> <ASSET>" strings so the user sees
+// HOW MUCH they receive and pay (audit #57) — not just the asset names.
+async function takeOffer(id,recvStr,payStr){
+  if(!confirm(`Take this offer?\n\n  You RECEIVE:  ${recvStr}\n  You PAY:      ${payStr}\n  Maker fee:    ${SWAP_FEE_OBX} OBX\n\n⚠ This starts a REAL atomic swap. On a node with a real Nano backend it locks REAL XNO into a 2-of-2 account and cannot be undone. Continue?`)) return;
+  msg("tradeMsg","muted","submitting take…");
+  try{
+    const r=await post("swapstake",{offer_id:id});
+    if(r&&r.error){ msg("tradeMsg","err",r.error+(r.detail?" — "+r.detail:"")); return; }
+    const sid=r&&(r.swap_id||r.id)||"";
+    msg("tradeMsg","ok","Trade started ✓ swap "+(sid?sid.slice(0,12)+"…":"(pending)")+" — see Active swaps below.");
+    startSwapsPoll(); loadSwaps();
+  }catch(e){
+    // The safety gate (S3) returns a JSON {error,detail} body with a 4xx status,
+    // which post() throws as text — parse it so the user reads the reason, not raw JSON.
+    let m=e.message;
+    try{ const j=JSON.parse(e.message); if(j&&j.error) m=j.error+(j.detail?" — "+j.detail:""); }catch(_){}
+    msg("tradeMsg","err","take failed: "+m);
+  }
+}
+
+// ---- live swap-step timeline (GET /swaps/active, poll 3s) ----
+const SWAP_STEPS=["init","funded","xno_lock","claim","sweep","done"];
+let _swapsTimer=null;
+function startSwapsPoll(){ if(_swapsTimer) return; loadSwaps(); _swapsTimer=setInterval(loadSwaps,3000); }
+function stopSwapsPoll(){ if(_swapsTimer){ clearInterval(_swapsTimer); _swapsTimer=null; } }
+function stepTracker(steps,phase){
+  // steps may be [{name,done}] from backend; else derive done-set from phase position.
+  let doneSet={}, current=phase||"";
+  if(Array.isArray(steps)&&steps.length){
+    for(const s of steps) doneSet[s.name]=!!s.done;
+    const firstUndone=steps.find(s=>!s.done); current=firstUndone?firstUndone.name:(phase||"done");
+  }else{
+    const pi=SWAP_STEPS.indexOf(phase);
+    SWAP_STEPS.forEach((n,i)=>{ doneSet[n]=pi>=0&&i<pi; });
+  }
+  return SWAP_STEPS.map((n,i)=>{
+    const done=doneSet[n], cur=(n===current && !done);
+    const bg=done?"rgba(74,222,128,.22)":cur?"rgba(34,211,238,.25)":"rgba(148,163,184,.10)";
+    const bd=done?"rgba(74,222,128,.5)":cur?"rgba(34,211,238,.6)":"rgba(148,163,184,.25)";
+    const mark=done?"✓ ":cur?"▶ ":"";
+    const arr=i<SWAP_STEPS.length-1?`<span style="opacity:.4;margin:0 2px">→</span>`:"";
+    return `<span class="pill" style="background:${bg};border-color:${bd};font-size:12px;padding:5px 9px"><b>${mark}</b>${n}</span>${arr}`;
+  }).join("");
+}
+async function loadSwaps(){
+  const box=el("swapsteps"); if(!box) return;
+  try{
+    const d=await get("swapsactive")||{};
+    const sess=Array.isArray(d.sessions)?d.sessions:[];
+    if(!sess.length){ box.innerHTML=`<div class="muted">no active swaps</div>`; return; }
+    box.innerHTML=sess.map(s=>{
+      const id=s.id?String(s.id).slice(0,12)+"…":"swap";
+      const role=s.role?` <span class="pill" style="font-size:11px">${s.role}</span>`:"";
+      const amts=[];
+      if(s.obx_amount!=null) amts.push(fmtAtomic(s.obx_amount,"OBX")+" OBX");
+      // xno_amount in /swaps/active is RAW Nano (1 XNO = 10^30 raw), NOT 12-dec
+      // offer-units — format with the BigInt raw helper, not fmtAtomic (which divides
+      // by 10^12 and would inflate the amount by 10^18).
+      if(s.xno_amount!=null) amts.push(xnoRawToHuman(s.xno_amount)+" XNO");
+      const amtStr=amts.length?`<span class="muted" style="font-size:12px">${amts.join(" ⇄ ")}</span>`:"";
+      const upd=s.updated?`<span class="muted" style="font-size:11px">· updated ${s.updated}</span>`:"";
+      return `<div style="padding:10px 0;border-top:1px solid rgba(148,163,184,.15)">
+        <div style="margin-bottom:6px"><span class="mono">${id}</span>${role} <span class="pill" style="font-size:12px">phase: ${s.phase||"—"}</span> ${amtStr} ${upd}</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px">${stepTracker(s.steps,s.phase)}</div>
+      </div>`;
+    }).join("");
+  }catch(e){ box.innerHTML=`<div class="muted">/swaps/active unavailable (${e.message})</div>`; }
+}
+
+// ---- XNO proceeds wallet ----
+// /xno/account is PUBLIC and read-only — fetched via the same-origin proxy.
+// /xno/recovery + /xno/withdraw are OPERATOR-GATED (loopback / OBX_RPC_TOKEN) and
+// are NOT proxied: they go straight to the node's RPC, which only works when this
+// page is opened against the operator's OWN node (local/operator access). The
+// optional operator token is sent as a Bearer header; the secret is never proxied.
+const XNO_BACKED_UP_KEY = "obx_xno_backed_up";
+// raw XNO is 1e30 per coin — format with BigInt to avoid float loss.
+function xnoRawToHuman(raw){
+  try{
+    const v=BigInt(raw); const SCALE=10n**30n;
+    const whole=v/SCALE, frac=v%SCALE;
+    if(frac===0n) return whole.toString();
+    let f=frac.toString().padStart(30,"0").replace(/0+$/,"").slice(0,6);
+    return whole.toString()+(f?"."+f:"");
+  }catch(_){ return String(raw); }
+}
+function xnoOpToken(){ return (el("xnoOpToken")?.value||"").trim(); }
+// Operator-gated calls hit the node directly (NOT the public proxy). Same-origin
+// root path works when served by the operator's node; the token is Bearer-auth.
+async function nodeGet(path){
+  const h={}; const t=xnoOpToken(); if(t) h["Authorization"]="Bearer "+t;
+  const r=await fetch(path,{headers:h}); const txt=await r.text();
+  if(!r.ok) throw new Error(txt||("HTTP "+r.status)); return JSON.parse(txt);
+}
+async function nodePost(path,obj){
+  const h={"content-type":"application/json"}; const t=xnoOpToken(); if(t) h["Authorization"]="Bearer "+t;
+  const r=await fetch(path,{method:"POST",headers:h,body:JSON.stringify(obj)}); const txt=await r.text();
+  if(!r.ok) throw new Error(txt||("HTTP "+r.status)); return JSON.parse(txt);
+}
+async function loadXNO(){
+  el("xnoStatus").textContent="loading…";
+  // /xno/account is intentionally NOT on the public hosted proxy (audit S3a) — on a
+  // SHARED node it would leak the operator's real Nano address. It IS served by the
+  // local desktop-app proxy (your own node) and reachable directly when this page is
+  // served BY a node. Try the proxy, then the node-direct path; if both fail we are on
+  // the hosted site, where the proceeds account is simply not yours to view.
+  let a=null;
+  try{ a=await get("xnoaccount"); }
+  catch(_){ try{ a=await nodeGet("/xno/account"); }catch(_2){} }
+  if(!a){
+    el("xnoAddress").textContent="—";
+    el("xnoBalance").textContent="—";
+    el("xnoReceivable").textContent="—";
+    el("xnoStatus").innerHTML=`<span class="muted">XNO proceeds are only visible from <b>your own node</b> — <a href="/download" style="color:inherit;text-decoration:underline">download the app</a>. (On the hosted site this would expose the operator's account, so it is disabled.)</span>`;
+    return;
+  }
+  el("xnoAddress").textContent=a.address||"—";
+  el("xnoBalance").textContent=xnoRawToHuman(a.balance_raw||"0")+" XNO";
+  const recv=BigInt(a.receivable_raw||"0");
+  el("xnoReceivable").textContent=recv>0n?(xnoRawToHuman(a.receivable_raw)+" XNO (pending)"):"none";
+  el("xnoMockBanner").classList.toggle("hide", a.backend!=="mock");
+  el("xnoStatus").textContent="backend: "+(a.backend||"?");
+}
+function xnoCopyAddr(){ navigator.clipboard?.writeText(el("xnoAddress").textContent); }
+function xnoInitOnboard(){
+  // hide onboarding once the operator has confirmed they saved the recovery key.
+  if(localStorage.getItem(XNO_BACKED_UP_KEY)==="1") el("xnoOnboard").classList.add("hide");
+  else el("xnoOnboard").classList.remove("hide");
+}
+async function xnoReveal(){
+  const box=el("xnoRevealBox");
+  box.innerHTML=`<div class="muted">revealing (requires local/operator access)…</div>`;
+  try{
+    const rec=await nodeGet("/xno/recovery");
+    box.innerHTML=`
+      <div class="warn" style="margin-top:10px">This is your XNO recovery key — shown ONCE. Anyone with it can spend your XNO. Store it offline.</div>
+      <div class="seedbox" style="word-break:break-all">${rec.secret_hex}</div>
+      <div class="muted" style="font-size:12px;margin-top:6px">Address: <span class="mono">${rec.address}</span></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer">
+        <input type="checkbox" id="xnoSavedChk" style="width:auto"> <span>✅ I saved my recovery key</span>
+      </label>
+      <div class="row" style="margin-top:10px"><button onclick="xnoConfirmSaved()">Done</button></div>`;
+  }catch(e){
+    box.innerHTML=`<div class="err" style="margin-top:10px">Could not reveal recovery key: ${e.message}<br>
+      <span class="muted">This works only when the wallet is opened against your own node (local/operator access). Add your operator token above if your node sets OBX_RPC_TOKEN.</span></div>`;
+  }
+}
+function xnoConfirmSaved(){
+  if(!el("xnoSavedChk")?.checked){ alert("Please tick “I saved my recovery key” first."); return; }
+  localStorage.setItem(XNO_BACKED_UP_KEY,"1");
+  el("xnoOnboard").classList.add("hide");
+}
+async function xnoWithdraw(){
+  msg("xnoWdMsg","muted","sending (requires local/operator access)…");
+  try{
+    const dest=el("xnoWdDest").value.trim();
+    const amount_raw=el("xnoWdAmt").value.trim();
+    if(!dest.startsWith("nano_")) return msg("xnoWdMsg","err","destination must be a nano_ address");
+    if(!/^[0-9]+$/.test(amount_raw)||amount_raw==="0") return msg("xnoWdMsg","err","amount must be a positive raw integer");
+    const r=await nodePost("/xno/withdraw",{amount_raw,dest});
+    msg("xnoWdMsg","ok",`Sent ✓ ${xnoRawToHuman(r.amount_raw)} XNO → ${r.dest}`);
+    setTimeout(loadXNO,1000);
+  }catch(e){ msg("xnoWdMsg","err","withdraw failed: "+e.message+" (needs local/operator access to your node)"); }
+}
+</script>
+</body>
+</html>
