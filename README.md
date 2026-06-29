@@ -64,11 +64,14 @@ classDef sta fill:#3a2e0b,stroke:#ffc15e,color:#fff3dc;
 
 ## Download & run
 
-Get a build for your platform from the **[v1.0.0 release](https://github.com/dhyabi2/obscura/releases/tag/v1.0.0)** (verify against [RELEASES.md](RELEASES.md) checksums). Or run a full node + miner on Linux in one command:
+Get a build for your platform from the **[v1.0.0 release](https://github.com/dhyabi2/obscura/releases/tag/v1.0.0)** (verify against [RELEASES.md](RELEASES.md) checksums). Or install + run a full node + miner in one command — **re-run the same line any time to upgrade** (it verifies the new build's SHA-256, replaces only the binary, and keeps your keys in `~/.obscura`):
 
 ```sh
-curl -fL https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz | tar xz \
-  && ./Obscura-linux-amd64/obscura-node --mine
+# Linux / macOS
+curl -fsSL https://obscura-blush.vercel.app/install.sh | sh
+
+# Windows (PowerShell)
+iwr -useb https://obscura-blush.vercel.app/install.ps1 | iex
 ```
 
 For a desktop wallet + swaps + mining in a window, unzip the macOS/Windows/Linux build and open it.

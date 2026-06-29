@@ -9,7 +9,7 @@
      'unsafe-inline' is currently required because the page uses an inline <style> and a large
      inline <script> (see report caveat — extracting them to external files would let us drop it). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
-<title>Obscura Wallet — non-custodial, in-browser (mainnet)</title>
+<title>Obscura Wallet — non-custodial, in-browser (test chain)</title>
 <meta name="description" content="Non-custodial Obscura (OBX) web wallet: keys and signing run entirely in your browser via WebAssembly. Send confidential OBX, stake vaults, and post experimental cross-chain swap offers (OBX↔XNO; BTC disabled).">
 <style>
   :root{--bg:#070a14;--panel:rgba(20,26,44,.72);--line:rgba(124,140,180,.16);--txt:#e8edf8;--mut:#8a97b4;--accent:#7c5cff;--accent2:#22d3ee;--green:#34d399;--amber:#fbbf24;--pink:#f472b6;--red:#ef4444}
@@ -19,7 +19,7 @@
   a{color:var(--accent2);text-decoration:none}a:hover{text-decoration:underline}
   .wrap{max-width:760px;margin:0 auto;padding:22px 16px 70px}
   header{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap}
-  .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#070a14;font-size:19px;box-shadow:0 0 24px rgba(124,92,255,.5)}
+  .logo{width:36px;height:36px;border-radius:10px;background:#0a0a0a;display:grid;place-items:center;font-weight:800;color:#070a14;font-size:19px;box-shadow:0 0 24px rgba(124,92,255,.5)}
   h1{font-size:20px;margin:0}
   .tag{font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
   .nav{margin-left:auto;display:flex;gap:14px;font-size:13px}
@@ -57,7 +57,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo"><svg viewBox="0 0 32 32" style="width:22px;height:22px;display:block"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#0a0a16" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="2.1" fill="#1d6fff"/></svg></div>
+    <div class="logo"><svg viewBox="0 0 32 32" fill="none" style="width:22px;height:22px;display:block"><circle cx="16" cy="16" r="13" stroke="#fff" stroke-width="2.4"/><circle cx="16" cy="16" r="8.6" stroke="#fff" stroke-width="1.6"/><circle cx="16" cy="16" r="3" fill="#fff"/></svg></div>
     <h1>Obscura Wallet</h1>
     <span class="tag">non-custodial · in-browser</span>
     <nav class="nav"><a href="/explorer">Explorer</a><a href="/download">Download app</a><a href="/">Home</a></nav>
@@ -67,8 +67,8 @@
   <!-- TRUST-MODEL DISCLOSURE (audit S4). Honest by default everywhere; JS softens
        the wording on a local node (your own machine = no shared-operator caveat). -->
   <div id="trustBanner" class="danger">
-    <b>Read before you use this.</b> Obscura mainnet is <b>live</b>, but it uses new from-scratch cryptography that has not had an external audit, so review it and understand the risks before committing significant value.
-    On the hosted site, every request you make is routed through <b>one operator's node</b>: that operator (and the hosting provider) can see your IP, your balance scans, and your swap activity, which weakens the on-chain privacy. Your recovery phrase is stored <b>encrypted in this browser</b> (passphrase-protected), but clearing site data still erases it, so keep your 24-word backup. For real privacy and self-custody, <a href="/download" style="color:#fecaca;text-decoration:underline">download and run your own node</a>.
+    <b>Read before you use this.</b> This is a <b>test chain with no live value</b> and unaudited from-scratch cryptography — do not put real money in it.
+    On the hosted site, every request you make is routed through <b>one operator's node</b>: that operator (and the hosting provider) can see your IP, your balance scans, and your swap activity, which weakens the on-chain privacy. Your recovery phrase is stored <b>encrypted in this browser</b> (passphrase-protected) — but clearing site data still erases it, so keep your 24-word backup. For real privacy and self-custody, <a href="/download" style="color:#fecaca;text-decoration:underline">download and run your own node</a>.
   </div>
 
   <!-- RUN-YOUR-OWN-NODE GUIDANCE (audit #14/#17/#18). The proxy already withholds your IP
@@ -278,8 +278,8 @@
   </div>
 
   <footer>
-    Non-custodial: keys are generated and held only in your browser. <b>Back up your recovery phrase:</b> there is no reset.
-    This wallet runs against live Obscura mainnet; the from-scratch crypto has not had an external audit. It stores your phrase in this browser's localStorage for convenience, so treat this hosted wallet as a convenience tool and run your own node for real value.
+    Non-custodial: keys are generated and held only in your browser. <b>Back up your recovery phrase</b> — there is no reset.
+    This is a research-prototype wallet on a TEST CHAIN with no live value; the from-scratch crypto is unaudited. It stores your phrase in this browser's localStorage for convenience — do not use it for real value.
     <span id="backend"></span>
     <div class="mono" id="buildHash" style="margin-top:8px;color:var(--mut);font-size:11px;opacity:.8" title="sha256 of the loaded wallet.wasm — compare against the published build hash">wallet build: verifying…</div>
   </footer>
@@ -426,7 +426,7 @@ async function unlockExisting(){
   const h=location.hostname;
   if(h==="localhost"||h==="127.0.0.1"||h==="[::1]"||h===""){
     b.classList.remove("danger"); b.classList.add("warn");
-    b.innerHTML=`<b>Running against your own node.</b> This runs against <b>your own local node</b>, so your activity stays on your machine. The cryptography has not had an external audit and your recovery phrase is encrypted in this browser, so back up your 24 words and understand the risks before committing real value.`;
+    b.innerHTML=`<b>Test chain — no live value.</b> This runs against <b>your own local node</b>, so your activity stays on your machine. The cryptography is unaudited and your recovery phrase is encrypted in this browser — back up your 24 words and don't use this for real value.`;
     // already self-hosted → the "run your own node" guidance is moot; hide it.
     const note=el("ownNodeNote"); if(note) note.classList.add("hide");
   }

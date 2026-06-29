@@ -68,6 +68,7 @@ func main() {
 			return "public" // DEFAULT: rainstorm + the public fallback chain (operator can override or set 'off')
 		}(), "Nano RPC: preset (rainstorm|somenano|nanoto|natrium|public) or a full URL; DEFAULT 'public'; 'off' disables XNO execution")
 		nanoList    = flag.Bool("nano-rpc-list", false, "print the built-in public Nano RPC presets and exit")
+		showVersion = flag.Bool("version", false, "print this node's release version and exit (used by the installer to detect upgrades)")
 		nanoAuth    = flag.String("nano-rpc-auth", os.Getenv("OBX_NANO_RPC_AUTH"), "optional Authorization header value for the Nano RPC")
 		nanoWallet  = flag.String("nano-wallet", os.Getenv("OBX_NANO_WALLET"), "Nano node wallet id used as the funding source when locking XNO")
 		nanoAccount = flag.String("nano-account", os.Getenv("OBX_NANO_ACCOUNT"), "Nano funding account (nano_...) inside --nano-wallet")
@@ -92,6 +93,10 @@ func main() {
 		uiAddr = flag.String("ui-addr", "127.0.0.1:8088", "local address to serve the embedded web UI on (with --ui)")
 	)
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(p2p.SoftwareVersion)
+		return
+	}
 	if *nanoList {
 		fmt.Print(swapd.NanoPresetList())
 		return

@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How an Obscura transaction travels</title>
+<style>
+  :root {
+    --bg: #070707;
+    --bg2: #0d0d0d;
+    --panel: rgba(16, 16, 16, 0.72);
+    --line: #232323;
+    --teal: #e6e6e6;
+    --cyan: #cfcfcf;
+    --violet: #bdbdbd;
+    --violet-deep: #9e9e9e;
+    --ink: #f0f0f0;
+    --muted: #9a9a9a;
+    --dim: #606060;
+    --glow-teal: 0 0 8px rgba(235,235,235,.9), 0 0 22px rgba(235,235,235,.55);
+    --glow-violet: 0 0 8px rgba(165,165,165,.9), 0 0 22px rgba(140,140,140,.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 620px at 18% -10%, rgba(235,235,235,.08), transparent 60%),
+      radial-gradient(1000px 640px at 88% 8%, rgba(140,140,140,.10), transparent 60%),
+      linear-gradient(180deg, var(--bg2), var(--bg));
+    color: var(--ink);
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* faint grid texture */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(125,125,125,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(125,125,125,.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    pointer-events: none;
+    mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  }
+
+  header.app {
+    padding: 26px 32px 8px;
+    text-align: center;
+    z-index: 2;
+  }
+  header.app .kicker {
+    font-size: 11px;
+    letter-spacing: .42em;
+    text-transform: uppercase;
+    color: var(--teal);
+    opacity: .85;
+    margin-bottom: 10px;
+  }
+  header.app h1 {
+    margin: 0;
+    font-size: clamp(20px, 3.2vw, 34px);
+    font-weight: 600;
+    letter-spacing: .01em;
+    background: linear-gradient(92deg, #f5f5f5, var(--teal) 45%, var(--violet) 95%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header.app .sub {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+
+  .stage {
+    position: relative;
+    flex: 1;
+    width: min(1280px, 96vw);
+    margin: 6px auto 0;
+    padding: 8px 18px 0;
+    z-index: 2;
+  }
+
+  /* ===== Actors ===== */
+  .scene {
+    position: relative;
+    height: 270px;
+    margin-top: 6px;
+  }
+  .actor {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 116px;
+    text-align: center;
+    z-index: 3;
+  }
+  .actor.left { left: 0; }
+  .actor.right { right: 0; }
+  .avatar {
+    width: 86px; height: 86px;
+    margin: 0 auto;
+    border-radius: 22px;
+    display: grid; place-items: center;
+    background: radial-gradient(120% 120% at 30% 20%, #181818, #0a0a0a);
+    border: 1px solid #262626;
+    position: relative;
+    transition: box-shadow .5s ease, border-color .5s ease, transform .5s ease;
+  }
+  .avatar svg { width: 46px; height: 46px; }
+  .actor .name {
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .05em;
+  }
+  .actor .role {
+    font-size: 10.5px;
+    color: var(--dim);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .actor.left .avatar.lit {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 1px rgba(235,235,235,.5), 0 0 34px rgba(235,235,235,.35);
+  }
+  .actor.right .avatar.lit {
+    border-color: var(--violet);
+    box-shadow: 0 0 0 1px rgba(165,165,165,.6), 0 0 40px rgba(140,140,140,.55);
+    transform: scale(1.06);
+    animation: recvPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes recvPulse {
+    0%,100% { box-shadow: 0 0 0 1px rgba(165,165,165,.6), 0 0 30px rgba(140,140,140,.4); }
+    50% { box-shadow: 0 0 0 1px rgba(165,165,165,.9), 0 0 54px rgba(140,140,140,.75); }
+  }
+
+  /* ===== Rail + stations ===== */
+  .rail-wrap {
+    position: absolute;
+    left: 116px; right: 116px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 200px;
+  }
+  .rail {
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(235,235,235,.25), rgba(125,125,125,.18) 50%, rgba(165,165,165,.3));
+  }
+  .rail-fill {
+    position: absolute;
+    left: 0; top: 50%;
+    height: 2px;
+    width: 0%;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, var(--teal), var(--cyan) 60%, var(--violet));
+    box-shadow: 0 0 10px rgba(205,205,205,.6);
+    transition: width .8s cubic-bezier(.4,.1,.2,1);
+  }
+
+  .station {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+  }
+  .node {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #101010;
+    border: 1.5px solid #2c2c2c;
+    position: relative;
+    transition: all .45s ease;
+  }
+  .node::after {
+    content: "";
+    position: absolute; inset: -7px;
+    border-radius: 50%;
+    border: 1px solid rgba(235,235,235,0);
+    transition: border-color .4s ease;
+  }
+  .station.done .node {
+    background: var(--teal);
+    border-color: var(--teal);
+    box-shadow: var(--glow-teal);
+  }
+  .station.active .node {
+    background: #f5f5f5;
+    border-color: var(--teal);
+    box-shadow: 0 0 10px #fff, 0 0 26px rgba(235,235,235,.9);
+    animation: nodePulse 1.1s ease-in-out infinite;
+  }
+  .station.active .node::after {
+    border-color: rgba(235,235,235,.55);
+    animation: ring 1.4s ease-out infinite;
+  }
+  @keyframes nodePulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.35); }
+  }
+  @keyframes ring {
+    0% { transform: scale(.6); opacity: .9; }
+    100% { transform: scale(2.1); opacity: 0; }
+  }
+  .station .tag {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 92px;
+    text-align: center;
+    font-size: 9.5px;
+    letter-spacing: .04em;
+    color: var(--dim);
+    line-height: 1.25;
+    transition: color .4s ease;
+    pointer-events: none;
+  }
+  .station:nth-child(odd) .tag { top: 16px; }
+  .station:nth-child(even) .tag { bottom: 16px; }
+  .station.done .tag { color: var(--muted); }
+  .station.active .tag { color: var(--teal); text-shadow: 0 0 12px rgba(235,235,235,.5); }
+  .station .idx {
+    display: block;
+    font-size: 9px;
+    color: var(--dim);
+    margin-bottom: 1px;
+  }
+  .station.active .idx { color: var(--cyan); }
+
+  /* ===== The transaction dot ===== */
+  .dot {
+    position: absolute;
+    top: 50%; left: 0;
+    width: 18px; height: 18px;
+    transform: translate(-50%, -50%);
+    z-index: 6;
+    transition: left 1.4s cubic-bezier(.45,.05,.2,1);
+    pointer-events: none;
+  }
+  .dot .core {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, #ffffff, var(--teal) 55%, var(--cyan));
+    box-shadow: 0 0 12px #fff, 0 0 26px rgba(205,205,205,.9), 0 0 44px rgba(235,235,235,.55);
+  }
+  .dot .trail {
+    position: absolute;
+    top: 50%; right: 50%;
+    height: 6px; width: 70px;
+    transform: translateY(-50%);
+    background: linear-gradient(270deg, rgba(205,205,205,.85), transparent);
+    filter: blur(2px);
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .dot.moving .trail { opacity: 1; }
+  .dot.charging .core {
+    animation: charge .6s ease-in-out infinite;
+    background: radial-gradient(circle at 38% 32%, #fff, #dcdcdc 50%, #b4b4b4);
+    box-shadow: 0 0 14px #fff, 0 0 30px rgba(225,225,225,.95), 0 0 60px rgba(185,185,185,.7);
+  }
+  @keyframes charge {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.55); }
+  }
+  /* clone for dandelion split */
+  .dot.clone .core {
+    background: radial-gradient(circle at 38% 32%, #fff, var(--violet) 55%, var(--violet-deep));
+    box-shadow: 0 0 10px #fff, 0 0 22px rgba(165,165,165,.85);
+  }
+  .dot.clone { opacity: 0; transition: left 1.2s ease, top 1.2s ease, opacity .5s; }
+  .dot.clone.show { opacity: 1; }
+
+  /* block crystal */
+  .crystal {
+    position: absolute;
+    top: 50%; left: 0;
+    width: 30px; height: 30px;
+    transform: translate(-50%, -50%) rotate(45deg) scale(0);
+    z-index: 5;
+    border: 1.5px solid var(--cyan);
+    background: linear-gradient(135deg, rgba(205,205,205,.25), rgba(165,165,165,.18));
+    box-shadow: 0 0 18px rgba(205,205,205,.6);
+    opacity: 0;
+    transition: transform .6s cubic-bezier(.2,1.4,.4,1), opacity .5s;
+  }
+  .crystal.show { transform: translate(-50%, -50%) rotate(45deg) scale(1); opacity: 1; }
+
+  /* fluff burst rings */
+  .burst {
+    position: absolute;
+    top: 50%; left: 0;
+    width: 10px; height: 10px;
+    transform: translate(-50%,-50%);
+    z-index: 4;
+    border-radius: 50%;
+    border: 1.5px solid rgba(165,165,165,.7);
+    opacity: 0;
+  }
+  .burst.go { animation: burst 1.3s ease-out forwards; }
+  @keyframes burst {
+    0% { transform: translate(-50%,-50%) scale(.3); opacity: .9; }
+    100% { transform: translate(-50%,-50%) scale(9); opacity: 0; }
+  }
+
+  /* ===== Caption + controls ===== */
+  .lower {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 18px;
+    margin-top: 8px;
+    align-items: stretch;
+  }
+  .caption {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px 24px;
+    backdrop-filter: blur(8px);
+    min-height: 132px;
+    position: relative;
+    overflow: hidden;
+  }
+  .caption::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--teal), var(--violet));
+    box-shadow: 0 0 14px rgba(205,205,205,.6);
+  }
+  .cap-head {
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .cap-phase {
+    font-size: 11px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+  .cap-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    color: #fff;
+  }
+  .cap-body {
+    font-size: 14px;
+    line-height: 1.62;
+    color: var(--muted);
+    max-width: 760px;
+  }
+  /* privacy-tech terms get a white "highlighter" so the important crypto reads out */
+  .cap-body .hl {
+    color: #ffffff;
+    font-weight: 600;
+    background: linear-gradient(180deg, transparent 60%, rgba(255,255,255,.16) 60%);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,.55);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  /* network-anonymity terms: same white emphasis, dashed underline to set them apart
+     without introducing colour (kept monochrome) */
+  .cap-body .hl.v {
+    color: #ffffff;
+    background: none;
+    box-shadow: none;
+    border-bottom: 1px dashed rgba(255,255,255,.65);
+  }
+  .cap-anim { animation: capIn .5s ease; }
+  @keyframes capIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel-right {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px 20px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .counter {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .counter b { color: var(--ink); font-size: 22px; font-weight: 700; }
+  .counter b.big { color: var(--teal); }
+  .pbar {
+    height: 6px;
+    border-radius: 4px;
+    background: #161616;
+    margin: 14px 0 18px;
+    overflow: hidden;
+  }
+  .pbar > i {
+    display: block; height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--teal), var(--violet));
+    border-radius: 4px;
+    transition: width .7s ease;
+    box-shadow: 0 0 12px rgba(205,205,205,.5);
+  }
+  .pips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .pip {
+    width: 14px; height: 5px; border-radius: 3px;
+    background: #1e1e1e;
+    transition: background .3s, box-shadow .3s;
+  }
+  .pip.on { background: var(--teal); box-shadow: 0 0 8px rgba(235,235,235,.7); }
+  .pip.cur { background: #fff; box-shadow: 0 0 10px #fff; }
+
+  .controls { display: flex; gap: 10px; }
+  button.ctl {
+    flex: 1;
+    appearance: none;
+    border: 1px solid #2e2e2e;
+    background: linear-gradient(180deg, #171717, #0e0e0e);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 12.5px;
+    letter-spacing: .06em;
+    padding: 11px 12px;
+    border-radius: 11px;
+    cursor: pointer;
+    transition: all .2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+  }
+  button.ctl:hover {
+    border-color: var(--teal);
+    color: #fff;
+    box-shadow: 0 0 18px rgba(235,235,235,.25);
+    transform: translateY(-1px);
+  }
+  button.ctl svg { width: 13px; height: 13px; }
+  button.ctl.primary {
+    border-color: rgba(165,165,165,.5);
+    background: linear-gradient(180deg, rgba(140,140,140,.22), rgba(140,140,140,.08));
+  }
+  button.ctl.primary:hover { border-color: var(--violet); box-shadow: 0 0 18px rgba(140,140,140,.35); }
+
+  footer.app {
+    text-align: center;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: .08em;
+    padding: 16px 12px 22px;
+    z-index: 2;
+  }
+  footer.app span { color: var(--teal); opacity: .7; }
+
+  /* ===== Responsive: tablet — stack caption above the control panel ===== */
+  @media (max-width: 920px) {
+    .lower { grid-template-columns: 1fr; }
+    .panel-right { order: -1; }
+    .station .tag { width: 74px; font-size: 8.5px; }
+    .actor { width: 96px; }
+    .avatar { width: 72px; height: 72px; }
+    .rail-wrap { left: 96px; right: 96px; }
+  }
+
+  /* ===== Responsive: phones — declutter the rail, enlarge touch + text ===== */
+  body.is-mobile header.app { padding: 16px 14px 4px; }
+  body.is-mobile header.app .kicker { font-size: 9px; letter-spacing: .26em; margin-bottom: 7px; }
+  body.is-mobile header.app .sub { font-size: 11px; }
+  body.is-mobile .stage { width: 100vw; padding: 6px 12px 0; }
+  body.is-mobile .scene { height: 196px; margin-top: 2px; }
+  body.is-mobile .actor { width: 66px; }
+  body.is-mobile .avatar { width: 54px; height: 54px; border-radius: 15px; }
+  body.is-mobile .avatar svg { width: 30px; height: 30px; }
+  body.is-mobile .actor .name { font-size: 11px; margin-top: 7px; }
+  body.is-mobile .actor .role { font-size: 8px; letter-spacing: .12em; margin-top: 2px; }
+  body.is-mobile .rail-wrap { left: 66px; right: 66px; height: 138px; }
+  body.is-mobile .node { width: 11px; height: 11px; }
+  /* the 12 per-station labels overlap on a narrow rail — the caption carries the
+     active label instead, so hide the rail tags on phones for a clean read */
+  body.is-mobile .station .tag { display: none; }
+  body.is-mobile .dot .trail { width: 40px; }
+  body.is-mobile .caption { padding: 15px 16px; min-height: 0; border-radius: 14px; }
+  body.is-mobile .cap-head { gap: 9px; margin-bottom: 8px; flex-wrap: wrap; }
+  body.is-mobile .cap-phase { font-size: 10px; letter-spacing: .16em; }
+  body.is-mobile .cap-title { font-size: 17px; }
+  body.is-mobile .cap-body { font-size: 13px; line-height: 1.56; }
+  body.is-mobile .panel-right { padding: 15px 16px; border-radius: 14px; }
+  body.is-mobile button.ctl { padding: 13px 12px; font-size: 13px; } /* >=44px tall touch target */
+  body.is-mobile footer.app { padding: 14px 12px 20px; font-size: 10px; }
+
+  /* very small phones — tighten the rail margins further */
+  @media (max-width: 380px) {
+    body.is-mobile .scene { height: 178px; }
+    body.is-mobile .rail-wrap { left: 54px; right: 54px; }
+    body.is-mobile .actor { width: 54px; }
+    body.is-mobile .cap-title { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+  <header class="app">
+    <div class="kicker">Obscura &nbsp;&middot;&nbsp; Private by design</div>
+    <h1>How an Obscura transaction travels</h1>
+    <div class="sub">One payment, from User&nbsp;A to User&nbsp;B — phase by phase across the network.</div>
+  </header>
+
+  <main class="stage">
+    <div class="scene">
+      <!-- Actor A -->
+      <div class="actor left">
+        <div class="avatar" id="avA">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#e6e6e6" stroke-width="1.6">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="name">User A</div>
+        <div class="role">Sender</div>
+      </div>
+
+      <!-- Actor B -->
+      <div class="actor right">
+        <div class="avatar" id="avB">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#bdbdbd" stroke-width="1.6">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="name">User B</div>
+        <div class="role">Recipient</div>
+      </div>
+
+      <!-- Rail -->
+      <div class="rail-wrap" id="railWrap">
+        <div class="rail"></div>
+        <div class="rail-fill" id="railFill"></div>
+        <div id="stations"></div>
+
+        <div class="burst" id="burst"></div>
+        <div class="crystal" id="crystal"></div>
+        <div class="dot clone" id="dotClone"><div class="core"></div></div>
+        <div class="dot" id="dot"><div class="trail"></div><div class="core"></div></div>
+      </div>
+    </div>
+
+    <div class="lower">
+      <div class="caption" id="caption">
+        <div class="cap-head">
+          <span class="cap-phase" id="capPhase">Phase 1 of 12</span>
+          <span class="cap-title" id="capTitle">Compose</span>
+        </div>
+        <div class="cap-body" id="capBody">Press Play to follow the transaction.</div>
+      </div>
+
+      <div class="panel-right">
+        <div>
+          <div class="counter">Phase <b class="big" id="cNow">1</b> <span style="color:var(--dim)">/</span> <b id="cTot">12</b></div>
+          <div class="pbar"><i id="pbar"></i></div>
+          <div class="pips" id="pips"></div>
+        </div>
+        <div class="controls">
+          <button class="ctl primary" id="btnPlay">
+            <svg id="ppIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span id="ppLabel">Pause</span>
+          </button>
+          <button class="ctl" id="btnReplay">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+            Replay
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app">
+    Obscura &mdash; a class-group accumulator privacy coin. <span>This is an illustrative walkthrough; timings are stylized.</span>
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // ===== View detection: tag <body> as mobile/desktop and keep it live on
+  // resize + orientation change, so the layout adapts to the device. =====
+  var mqMobile = window.matchMedia("(max-width: 680px)");
+  function applyView(mq) {
+    var mobile = mq.matches;
+    document.body.classList.toggle("is-mobile", mobile);
+    document.body.classList.toggle("is-desktop", !mobile);
+  }
+  applyView(mqMobile);
+  if (mqMobile.addEventListener) {
+    mqMobile.addEventListener("change", applyView);
+  } else if (mqMobile.addListener) {
+    mqMobile.addListener(applyView); // older Safari
+  }
+
+  // body is HTML: privacy/crypto terms are wrapped in <span class="hl"> (teal) or
+  // <span class="hl v"> (violet, for network-anonymity terms) so they read out.
+  var PHASES = [
+    { tag: "Compose", title: "Compose",
+      body: "User A's wallet picks coins, creates <span class=\"hl\">a one-time stealth address</span> for User B, <span class=\"hl\">hides the amount behind a commitment + range proof, and signs</span>. Nothing is on-chain yet." },
+    { tag: "Broadcast", title: "Broadcast",
+      body: "The <span class=\"hl\">fully signed transaction</span> is sent off to a network node." },
+    { tag: "Validate", title: "Validate",
+      body: "The node <span class=\"hl\">checks the signature</span>, that <span class=\"hl\">value is conserved (inputs = outputs + fee)</span>, that the <span class=\"hl\">amount is in range (no negatives or overflow)</span>, that the coins exist, and that they <span class=\"hl\">haven't already been spent</span>." },
+    { tag: "Mempool", title: "Mempool",
+      body: "The valid transaction joins the <span class=\"hl\">pending pool</span>, where it waits <span class=\"hl\">ordered by the fee it offers</span>." },
+    { tag: "Dandelion stem", title: "Dandelion stem",
+      body: "Instead of shouting to everyone, it is <span class=\"hl v\">relayed privately to just one peer per hop</span> — <span class=\"hl v\">hiding where it originally came from</span>." },
+    { tag: "Fluff", title: "Fluff",
+      body: "After a few private hops it <span class=\"hl v\">floods out to the whole network at once</span>. The <span class=\"hl v\">true origin stays hidden in the crowd</span>." },
+    { tag: "Miner picks it", title: "Miner picks it",
+      body: "A miner pulls the transaction out of the pool and into a <span class=\"hl\">candidate block</span>, <span class=\"hl\">prioritizing it by fee</span>." },
+    { tag: "PoW + PoR", title: "Proof-of-work + PoR",
+      body: "The miner grinds <span class=\"hl\">RandomX hashes</span> and answers <span class=\"hl\">proof-of-retrievability challenges</span> — proving it actually stores the chain — until the block <span class=\"hl\">meets the difficulty target</span>." },
+    { tag: "Propagation", title: "Block propagation",
+      body: "The newly solved block <span class=\"hl v\">floods across the entire network</span> so every node hears about it." },
+    { tag: "Apply + commit", title: "Apply and commit",
+      body: "Every node re-validates and applies the block: the new coin <span class=\"hl\">joins the accumulator and commitment tree</span>, the <span class=\"hl\">spent coin's nullifier is recorded</span>, and the <span class=\"hl\">block roots update</span>. It is now part of the chain." },
+    { tag: "Recipient scans", title: "Recipient scans",
+      body: "User B's wallet scans the new block. A quick <span class=\"hl\">view-tag and key match</span> reveal the <span class=\"hl\">stealth output</span> meant for them, and the <span class=\"hl\">hidden amount is decrypted</span>." },
+    { tag: "Confirmed", title: "Confirmed",
+      body: "As more blocks stack on top, the payment finalizes. User B now holds the funds — <span class=\"hl v\">privately and irreversibly</span>." }
+  ];
+
+  var N = PHASES.length;
+  var DUR = 6000; // ms per phase (2x slower — more time to read each step)
+
+  var stationsEl = document.getElementById("stations");
+  var railFill = document.getElementById("railFill");
+  var dot = document.getElementById("dot");
+  var dotClone = document.getElementById("dotClone");
+  var crystal = document.getElementById("crystal");
+  var burst = document.getElementById("burst");
+  var avA = document.getElementById("avA");
+  var avB = document.getElementById("avB");
+
+  var capPhase = document.getElementById("capPhase");
+  var capTitle = document.getElementById("capTitle");
+  var capBody = document.getElementById("capBody");
+  var caption = document.getElementById("caption");
+  var cNow = document.getElementById("cNow");
+  var pbar = document.getElementById("pbar");
+  var pipsEl = document.getElementById("pips");
+
+  var btnPlay = document.getElementById("btnPlay");
+  var btnReplay = document.getElementById("btnReplay");
+  var ppIcon = document.getElementById("ppIcon");
+  var ppLabel = document.getElementById("ppLabel");
+
+  document.getElementById("cTot").textContent = N;
+
+  var ICON_PLAY = "M8 5v14l11-7z";
+  var ICON_PAUSE = "M6 5h4v14H6zM14 5h4v14h-4z";
+
+  // Build stations + pips
+  var nodes = [];
+  for (var i = 0; i < N; i++) {
+    var pct = (i / (N - 1)) * 100;
+    var st = document.createElement("div");
+    st.className = "station";
+    st.style.left = pct + "%";
+    st.innerHTML = '<div class="node"></div><div class="tag"><span class="idx">' +
+                   (i + 1) + '</span>' + PHASES[i].tag + '</div>';
+    stationsEl.appendChild(st);
+    nodes.push(st);
+
+    var pip = document.createElement("div");
+    pip.className = "pip";
+    pipsEl.appendChild(pip);
+  }
+  var pips = pipsEl.children;
+
+  function posPct(i) { return (i / (N - 1)) * 100; }
+
+  var current = -1;
+  var playing = true;
+  var timer = null;
+
+  function clearFlourishes() {
+    dot.classList.remove("charging");
+    crystal.classList.remove("show");
+    dotClone.classList.remove("show");
+    burst.classList.remove("go");
+  }
+
+  function setPhase(i) {
+    current = i;
+    var p = PHASES[i];
+    var pct = posPct(i);
+
+    // dot movement
+    dot.classList.add("moving");
+    dot.style.left = pct + "%";
+    clearTimeout(dot._mt);
+    dot._mt = setTimeout(function () { dot.classList.remove("moving"); }, 1400);
+
+    railFill.style.width = pct + "%";
+
+    // stations state
+    for (var k = 0; k < N; k++) {
+      nodes[k].classList.toggle("active", k === i);
+      nodes[k].classList.toggle("done", k < i);
+    }
+
+    // caption
+    capPhase.textContent = "Phase " + (i + 1) + " of " + N;
+    capTitle.textContent = p.title;
+    capBody.innerHTML = p.body;
+    caption.classList.remove("cap-anim");
+    void caption.offsetWidth;
+    caption.classList.add("cap-anim");
+
+    // counter / progress
+    cNow.textContent = i + 1;
+    pbar.style.width = (((i + 1) / N) * 100) + "%";
+    for (var m = 0; m < N; m++) {
+      pips[m].classList.toggle("on", m < i);
+      pips[m].classList.toggle("cur", m === i);
+    }
+
+    // actor states
+    avA.classList.toggle("lit", i <= 1);
+    avB.classList.toggle("lit", i >= N - 2);
+
+    // ===== flourishes per phase =====
+    clearFlourishes();
+
+    if (i === 4) {
+      // Dandelion stem: split a violet clone that veers off the rail
+      dotClone.style.transition = "none";
+      dotClone.style.left = pct + "%";
+      dotClone.style.top = "50%";
+      void dotClone.offsetWidth;
+      dotClone.style.transition = "left 1.2s ease, top 1.2s ease, opacity .5s";
+      dotClone.classList.add("show");
+      setTimeout(function () {
+        dotClone.style.left = (pct + 7) + "%";
+        dotClone.style.top = "20%";
+      }, 60);
+      setTimeout(function () { dotClone.classList.remove("show"); }, 1900);
+    }
+
+    if (i === 5) {
+      // Fluff: violet burst rings flood outward
+      burst.style.left = pct + "%";
+      void burst.offsetWidth;
+      burst.classList.add("go");
+    }
+
+    if (i === 7) {
+      // PoW + PoR: dot charges up (amber)
+      dot.classList.add("charging");
+    }
+
+    if (i === 9) {
+      // Apply + commit: block crystal forms
+      crystal.style.left = pct + "%";
+      setTimeout(function () { crystal.classList.add("show"); }, 300);
+    }
+  }
+
+  function next() {
+    var i = (current + 1) % N;
+    if (i === 0 && current !== -1) {
+      // brief reset pause at loop
+      resetVisual();
+      setTimeout(function () { setPhase(0); schedule(); }, 650);
+      return;
+    }
+    setPhase(i);
+    schedule();
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    if (!playing) return;
+    timer = setTimeout(next, DUR);
+  }
+
+  function resetVisual() {
+    railFill.style.width = "0%";
+    clearFlourishes();
+    for (var k = 0; k < N; k++) {
+      nodes[k].classList.remove("active", "done");
+    }
+    avA.classList.remove("lit");
+    avB.classList.remove("lit");
+    dot.style.transition = "none";
+    dot.style.left = "0%";
+    void dot.offsetWidth;
+    dot.style.transition = "left 1.4s cubic-bezier(.45,.05,.2,1)";
+  }
+
+  function play() {
+    playing = true;
+    ppIcon.querySelector("path").setAttribute("d", ICON_PAUSE);
+    ppLabel.textContent = "Pause";
+    if (current === -1) { setPhase(0); }
+    schedule();
+  }
+  function pause() {
+    playing = false;
+    clearTimeout(timer);
+    ppIcon.querySelector("path").setAttribute("d", ICON_PLAY);
+    ppLabel.textContent = "Play";
+  }
+
+  btnPlay.addEventListener("click", function () {
+    if (playing) pause(); else play();
+  });
+  btnReplay.addEventListener("click", function () {
+    clearTimeout(timer);
+    resetVisual();
+    setTimeout(function () { setPhase(0); if (playing) schedule(); }, 120);
+    if (!playing) play();
+  });
+
+  // kick off
+  setTimeout(play, 500);
+})();
+</script>
+</body>
+</html>

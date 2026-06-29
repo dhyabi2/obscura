@@ -6,7 +6,7 @@
 <title>Download Obscura — wallet · swap · one-click miner</title>
 <meta name="description" content="Download the Obscura desktop app (wallet + cross-chain swap + one-click mining) for macOS, Windows, and Linux. Single static binary, no dependencies." />
 <meta name="theme-color" content="#07070d" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%230b0b14%27/%3E%3Cpath%20d%3D%27M4%2027%20L9%2023%20L8%2016%20L11%206%20L14%2012%20L20%2011%20L27%205%20L24%2013%20L28%2016%20L23%2018%20L24%2024%20L19%2021%20L15%2026%20L11%2022%20Z%27%20fill%3D%27none%27%20stroke%3D%27%238b6cff%27%20stroke-width%3D%271.9%27%20stroke-linejoin%3D%27round%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%230a0a0a%27%2F%3E%3Ccircle%20cx%3D%2716%27%20cy%3D%2716%27%20r%3D%2710%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%272.4%27%2F%3E%3Ccircle%20cx%3D%2716%27%20cy%3D%2716%27%20r%3D%276%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%271.6%27%2F%3E%3Ccircle%20cx%3D%2716%27%20cy%3D%2716%27%20r%3D%272.4%27%20fill%3D%27%23fff%27%2F%3E%3C%2Fsvg%3E" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 <style>
@@ -46,7 +46,7 @@
 <nav class="nav">
   <div class="wrap nav-inner">
     <a class="brand" href="/">
-      <svg class="logo" viewBox="0 0 32 32"><path d="M4 27 L9 23 L8 16 L11 6 L14 12 L20 11 L27 5 L24 13 L28 16 L23 18 L24 24 L19 21 L15 26 L11 22 Z" fill="none" stroke="#8b6cff" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/><circle cx="22" cy="12" r="2" fill="#2b9bff"/></svg>
+      <svg class="logo" viewBox="0 0 32 32" fill="none" aria-label="Obscura"><circle cx="16" cy="16" r="13" stroke="#ffffff" stroke-width="2.4"/><circle cx="16" cy="16" r="8.6" stroke="#ffffff" stroke-width="1.6"/><circle cx="16" cy="16" r="3" fill="#ffffff"/></svg>
       <b>Obscura</b><span class="tick">OBX</span>
     </a>
     <div class="nav-links">
@@ -75,31 +75,32 @@
     <div class="dlcard" data-os="mac">
       <h3>🍎 macOS</h3>
       <div class="arch">Apple Silicon &amp; Intel · macOS 10.13+</div>
-      <a class="dlbtn" href="/releases/Obscura-darwin-arm64.zip">Download (Apple Silicon)</a>
-      <a class="dlbtn alt" href="/releases/Obscura-darwin-amd64.zip">Intel Mac (amd64)</a>
+      <a class="dlbtn" href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-darwin-arm64.zip">Download (Apple Silicon)</a>
+      <a class="dlbtn alt" href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-darwin-amd64.zip">Intel Mac (amd64)</a>
+      <p class="tiny muted" style="margin:10px 0 0">See <b>“cannot be opened”</b>? That's expected — the build isn't Apple-signed. <a href="#macos-open" style="color:#9fb0ff">How to open it →</a></p>
     </div>
     <div class="dlcard" data-os="win">
       <h3>🪟 Windows</h3>
       <div class="arch">Windows 10/11 · 64-bit</div>
-      <a class="dlbtn" href="/releases/Obscura-windows-amd64.zip">Download (x64)</a>
-      <a class="dlbtn alt" href="/releases/Obscura-windows-arm64.zip">ARM64</a>
+      <a class="dlbtn" href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-windows-amd64.zip">Download (x64)</a>
+      <a class="dlbtn alt" href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-windows-arm64.zip">ARM64</a>
     </div>
     <div class="dlcard" data-os="linux">
       <h3>🐧 Linux</h3>
       <div class="arch">glibc x86-64 &amp; ARM64</div>
-      <a class="dlbtn" href="/releases/Obscura-linux-amd64.tar.gz">Download (x86-64)</a>
-      <a class="dlbtn alt" href="/releases/Obscura-linux-arm64.tar.gz">ARM64</a>
+      <a class="dlbtn" href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz">Download (x86-64)</a>
+      <a class="dlbtn alt" href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-arm64.tar.gz">ARM64</a>
     </div>
   </div>
   <p class="tiny muted" style="text-align:center;margin:-6px 0 26px">
-    Verify your download against <a href="/releases/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a> before running it (commands below).
+    Verify your download against <a href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a> before running it (commands below).
   </p>
 
   <div class="steps2">
     <h3>Run it</h3>
     <ol>
       <li><b>Unzip</b> the download.</li>
-      <li><b>macOS:</b> open the <code>Obscura.app</code>. <b>Windows:</b> double-click <code>Obscura.bat</code>. <b>Linux:</b> run <code>./obscura</code>.</li>
+      <li><b>macOS:</b> open <code>Obscura-darwin-arm64.app</code> (first launch needs the <a href="#macos-open" style="color:#9fb0ff">unsigned-build step</a>). <b>Windows:</b> double-click <code>Obscura.bat</code>. <b>Linux:</b> run <code>./obscura</code>.</li>
       <li>A native app window opens with your <b>wallet</b>, <b>swap</b>, and <b>mining</b>. The node bootstraps to the network automatically (built-in seeds + peer exchange) and starts mining to your wallet.</li>
       <li><b>Back up your recovery phrase immediately</b> — it is stored only on this machine; if you lose it, your coins are gone for good.</li>
     </ol>
@@ -109,12 +110,13 @@
     <h3>⚠ First-launch security warning (unsigned builds)</h3>
     <p class="muted tiny">These builds are not code-signed, so the OS will warn you the first time. Verify the checksum, then:</p>
 
-    <details class="adv" open>
-      <summary><b>macOS</b> — “Obscura is damaged / cannot be opened”</summary>
-      <p class="tiny muted">Gatekeeper quarantines unsigned apps. After unzipping, clear the quarantine flag, then open:</p>
-      <pre>xattr -dr com.apple.quarantine /path/to/Obscura.app
-open /path/to/Obscura.app</pre>
-      <p class="tiny muted">Or: right-click the app → <b>Open</b> → <b>Open</b> in the dialog (first run only).</p>
+    <details class="adv" open id="macos-open">
+      <summary><b>macOS</b> — “cannot be opened because Apple cannot check it for malicious software”</summary>
+      <p class="tiny muted">This appears because the build isn't signed with an Apple Developer ID — not because it's unsafe. The download is a <code>.zip</code>; double-click it to unzip and you get <code>Obscura-darwin-arm64.app</code> (or <code>Obscura-darwin-amd64.app</code> on Intel). Open it with either method below (first run only):</p>
+      <p class="tiny muted"><b>Terminal</b> — clear the quarantine flag, then open:</p>
+      <pre>xattr -dr com.apple.quarantine ~/Downloads/Obscura-darwin-arm64.app
+open ~/Downloads/Obscura-darwin-arm64.app</pre>
+      <p class="tiny muted"><b>Finder (no Terminal)</b> — in Finder, <b>Control-click</b> (right-click) <code>Obscura-darwin-arm64.app</code> → <b>Open</b> → click <b>Open</b> in the dialog. If you don't get an Open button, go to <b>System Settings → Privacy &amp; Security</b>, scroll to the “Obscura-darwin-arm64 was blocked” notice, and click <b>Open Anyway</b>.</p>
     </details>
 
     <details class="adv">
@@ -123,12 +125,21 @@ open /path/to/Obscura.app</pre>
       <pre>Right-click Obscura.bat → Properties → check "Unblock" → OK</pre>
     </details>
 
+    <details class="adv" open>
+      <summary><b>Linux / macOS</b> — one command (install, and re-run to upgrade)</summary>
+      <p class="muted tiny">Installs + starts a full node + miner that joins mainnet. <b>Run the exact same command again any time to upgrade:</b> it detects the running node, checks for a newer published build, asks you to confirm, replaces the binary, and restarts it. Your wallet/miner keys in <code>~/.obscura</code> are never touched — only the program is replaced.</p>
+      <pre><span class="muted"># install + run, and re-run to upgrade (verifies the SHA-256 before replacing)</span>
+curl -fsSL https://obscura-blush.vercel.app/install.sh | sh</pre>
+      <p class="muted tiny">Pass your own node flags after <code>-s --</code> (defaults to <code>--mine --seeds 167.172.56.34:18080</code>):</p>
+      <pre>curl -fsSL https://obscura-blush.vercel.app/install.sh | sh -s -- --mine --seeds 167.172.56.34:18080</pre>
+      <p class="muted tiny">On a desktop with a screen, use the GUI app instead: <code>tar xzf Obscura-linux-amd64.tar.gz &amp;&amp; cd Obscura-linux-amd64 &amp;&amp; ./obscura</code> (wallet + swap + mining window).</p>
+      <p class="muted tiny">Prefer to do it by hand? <code>curl -fL https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz | tar xz &amp;&amp; ./Obscura-linux-amd64/obscura-node --mine --seeds 167.172.56.34:18080</code></p>
+    </details>
+
     <details class="adv">
-      <summary><b>Linux</b> — make it executable</summary>
-      <pre>tar xzf Obscura-linux-amd64.tar.gz
-cd Obscura-linux-amd64
-chmod +x obscura obscura-node
-./obscura</pre>
+      <summary><b>Windows</b> — one command (install, and re-run to upgrade)</summary>
+      <p class="muted tiny">In PowerShell. Re-run the same line to upgrade — keys in <code>%USERPROFILE%\.obscura</code> are preserved, only the binary is replaced:</p>
+      <pre>iwr -useb https://obscura-blush.vercel.app/install.ps1 | iex</pre>
     </details>
   </div>
 
@@ -138,7 +149,8 @@ chmod +x obscura obscura-node
 shasum -a 256 Obscura-darwin-arm64.zip
 <span class="muted"># Windows (PowerShell)</span>
 Get-FileHash .\Obscura-windows-amd64.zip -Algorithm SHA256</pre>
-    <p class="tiny muted">The printed hash must match the line for your file in <a href="/releases/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a>. If it doesn't, do not run the file.</p>
+    <p class="tiny muted">The printed hash must match the line for your file in <a href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a>. If it doesn't, do not run the file.</p>
+    <p class="tiny muted">The same checksums are published on GitHub for independent verification: <a href="https://github.com/dhyabi2/obscura/blob/main/RELEASES.md" style="color:#9fb0ff">github.com/dhyabi2/obscura · RELEASES.md</a> (source: <a href="https://github.com/dhyabi2/obscura" style="color:#9fb0ff">github.com/dhyabi2/obscura</a>).</p>
   </div>
 
   <div class="steps2">
