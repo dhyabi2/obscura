@@ -28,12 +28,12 @@ curl -fL https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-lin
 Verify your download before running it (`shasum -a 256 -c SHA256SUMS.txt`):
 
 ```
-663a2b8c09a92419b2dee98fd79c38f5c5c19dc46398e546ff533d955384ac5b  Obscura-darwin-amd64.zip
-355d06f151e3f32096245765b61f445d726a7bafe51d6da7e3b7d2449dca7593  Obscura-darwin-arm64.zip
-659670343efb9ba51284a2978e784657b47823b34d74f528d55e2394d4ba5289  Obscura-windows-amd64.zip
-6b7b1870e6555345a038c2ee7911df04f034c6fded7140b7c49ba16e24d20048  Obscura-windows-arm64.zip
-75545854ba88f3ba0cdefbc5dff3b49d99389a1db0e2204fd7daf353af46319d  Obscura-linux-amd64.tar.gz
-9829831e320c541c251bbfe3a8ca072fb3f0262cb1d22601d61f6ddbe748455c  Obscura-linux-arm64.tar.gz
+72993aef07b4257cfa6dd68b16e505bf5ec943bfd850e6aabf05ba4afe1f3d26  Obscura-darwin-amd64.zip
+c83bc6e3674453986d37bc4da23ad0e8a29bdea8dc718204b52c68e1dbdbfb7b  Obscura-darwin-arm64.zip
+cc6bf06c284ff87dbf9a7dc8d49f0928c3f28db9b3179e7371e4ceb5ce4d191c  Obscura-windows-amd64.zip
+d288f471c7e9f21c3887526a4b4b73297a0f285768d31cdfa0780effe1afe4f5  Obscura-windows-arm64.zip
+01ffb89cf7142c1a283146a3958842cd56d24d7dc11ad03589db50dabb48fcf9  Obscura-linux-amd64.tar.gz
+d03c818e68065047890c0ab34c3297f4d32a9067bf27dd6af324fa8a64cbfe06  Obscura-linux-arm64.tar.gz
 ```
 
 _macOS:_ the build isn't Apple-signed; clear the quarantine flag after download —
