@@ -51,6 +51,13 @@ func main() {
 	giveAmt := args.Uint64("give-amount", 0, "amount you give, atomic units (offer)")
 	getAmt := args.Uint64("get-amount", 0, "amount you want, atomic units (offer)")
 	args.Parse(os.Args[2:])
+	// audit #8: secrets passed as CLI flags are visible in ps/cmdline/shell-history.
+	args.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "mnemonic", "passphrase", "new-passphrase":
+			fmt.Fprintf(os.Stderr, "SECURITY: --%s on the command line is visible in ps/cmdline/shell-history — prefer the env var (OBSCURA_WALLET_PASSPHRASE / OBSCURA_WALLET_NEW_PASSPHRASE) or stdin.\n", f.Name)
+		}
+	})
 	config.CoinbaseMaturity = *maturity
 	optPassphrase = *passphrase
 

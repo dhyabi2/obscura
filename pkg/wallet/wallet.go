@@ -1184,7 +1184,10 @@ func (w *Wallet) FundSwap(view ChainView, swapKey []byte, amount uint64, claimKe
 			continue
 		}
 		selected = append(selected, o)
-		total += o.Amount
+		var ovf bool
+		if total, ovf = addCheck(total, o.Amount); ovf { // audit: guard the input-sum like every other site
+			return nil, errors.New("wallet: input sum overflow")
+		}
 		if total >= need {
 			break
 		}

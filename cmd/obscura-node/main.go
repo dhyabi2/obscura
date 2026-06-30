@@ -95,6 +95,12 @@ func main() {
 		uiAddr = flag.String("ui-addr", "127.0.0.1:8088", "local address to serve the embedded web UI on (with --ui)")
 	)
 	flag.Parse()
+	// audit #8: a secret passed as a CLI flag is visible in ps/cmdline/shell-history.
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "nano-fund-secret" {
+			log.Printf("SECURITY: --nano-fund-secret on the command line is visible in ps/cmdline/shell-history — prefer the OBX_NANO_FUND_SECRET env var.")
+		}
+	})
 	if *showVersion {
 		fmt.Println(p2p.SoftwareVersion)
 		return
@@ -318,7 +324,13 @@ func main() {
 		dest, minerSeed := resolveMineAddress(*datadir, *mineAddr)
 		var refTag []byte
 		if *referrer != "" {
-			refTag, _ = hex.DecodeString(*referrer)
+			// audit: a bad-hex --referrer was silently discarded, baking garbage into a
+			// PERMANENT on-chain coinbase field with no feedback. Fail loudly instead.
+			rt, err := hex.DecodeString(*referrer)
+			if err != nil {
+				log.Fatalf("bad --referrer: not valid hex (%v)", err)
+			}
+			refTag = rt
 		}
 		log.Printf("Mining enabled")
 		go mineLoop(c, mp, node, dest, refTag)

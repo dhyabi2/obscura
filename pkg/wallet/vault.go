@@ -86,7 +86,10 @@ func (w *Wallet) BuildVaultDeposit(view ChainView, ownerPub []byte, amount, term
 			continue
 		}
 		selected = append(selected, o)
-		total += o.Amount
+		var ovf bool
+		if total, ovf = addCheck(total, o.Amount); ovf { // audit: guard the input-sum
+			return nil, nil, errors.New("wallet: input sum overflow")
+		}
 		if total >= need {
 			break
 		}
