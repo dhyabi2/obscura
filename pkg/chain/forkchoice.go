@@ -425,7 +425,7 @@ func (c *Chain) reorgForkLocked(node *chainNode) (depth, forkHeight uint64) {
 // resetState clears all in-memory consensus state to genesis-empty. Disk-backed
 // sets only have their RAM count reset; the caller (rebuild/replay) truncates bolt.
 func (c *Chain) resetState() {
-	c.invalidateStateRoot() // state-root memo: reset clears all residual state (#perf)
+	c.invalidateStateRoot()               // state-root memo: reset clears all residual state (#perf)
 	c.acc = accumulator.NewValueOnly(c.G) // Track A: value-only (no member set)
 	c.spent.resetCount()
 	c.coinCount = 0
@@ -585,6 +585,11 @@ func (c *Chain) persistActiveChainLocked() {
 		}
 		for h, blk := range c.blocks {
 			if err := b.Put(heightKey(h), blk.Serialize()); err != nil {
+				return err
+			}
+			// re-index the re-orged-in block's txs (additive query index; overwrites
+			// any superseded txid->height mapping from the abandoned branch).
+			if err := indexBlockTxs(dtx, blk); err != nil {
 				return err
 			}
 		}

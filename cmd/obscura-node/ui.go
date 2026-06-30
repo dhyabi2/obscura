@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -83,6 +84,27 @@ func startUI(uiAddr, rpcAddr string) {
 			r2.URL.Path = "/wallet.html"
 			fileServer.ServeHTTP(w, r2)
 			return
+		}
+		// Marketing landing (audit #2/#4): on a local node `/` is the wallet, and
+		// http.FileServer REDIRECTS index.html -> `/`, so the intro/diagram page was
+		// unreachable. Serve its bytes DIRECTLY (no redirect) at /home, /index, /landing.
+		switch r.URL.Path {
+		case "/home", "/index", "/landing", "/index.html":
+			serveEmbeddedHTML(w, sub, "index.html")
+			return
+		}
+		// CLEAN URLs (match the hosted site's vercel.json cleanUrls): an
+		// extensionless path like /explorer or /wallet maps to /explorer.html etc.
+		// so the in-page nav links work under --ui too (they 404'd before).
+		if p := r.URL.Path; !strings.Contains(p[strings.LastIndexByte(p, '/')+1:], ".") {
+			cand := strings.TrimSuffix(p, "/") + ".html"
+			if f, err := sub.Open(strings.TrimPrefix(cand, "/")); err == nil {
+				_ = f.Close()
+				r2 := r.Clone(r.Context())
+				r2.URL.Path = cand
+				fileServer.ServeHTTP(w, r2)
+				return
+			}
 		}
 		fileServer.ServeHTTP(w, r)
 	})
@@ -234,6 +256,11 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 		"liquidity":     "/liquidity",
 		"swapsactive":   "/swaps/active",
 		"autoliquidity": "/auto-liquidity",
+		// node identity + machine-readable params (decimals/fees/terms/network), so
+		// UIs and third-party clients read them instead of hardcoding (UI-decoupling audit).
+		"status":  "/status",
+		"version": "/version",
+		"params":  "/params",
 		// PUBLIC, read-only XNO proceeds account (address + balance/receivable). The
 		// operator-gated /xno/recovery and /xno/withdraw are DELIBERATELY absent.
 		"xnoaccount": "/xno/account",
@@ -244,12 +271,31 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 		"candles": "/candles",
 		"stats":   "/stats",
 		"orders":  "/orders",
+		// depth-aware quote + ladder (node already computes these — UIs shouldn't
+		// reimplement pricing) and tx-by-hash lookup (UI-decoupling + API audits).
+		"quote": "/quote",
+		"depth": "/depth",
+		"tx":    "/tx",
+	}
+	// NON-CUSTODIAL browser swap relay GET endpoints. They forward swap_id /
+	// account / hash / key params (a nano_ address is 65 chars, longer than the
+	// market-data params), so they use a dedicated 128-char sanitizer below.
+	relayGetQ := map[string]string{
+		"swaprecv":       "/swaps/relay/recv",
+		"swapout":        "/swaps/swapout",
+		"nanoaccount":    "/swaps/nano/account",
+		"nanoreceivable": "/swaps/nano/receivable",
+		"nanoblock":      "/swaps/nano/block",
 	}
 	// POST write endpoints (body forwarded as-is).
 	post := map[string]string{
 		"submittx":  "/submittx",
 		"offer":     "/offer",
 		"swapstake": "/swaps/take",
+		// browser swap relay writes (browser holds every key; node only relays).
+		"swapopen":    "/swaps/relay/open",
+		"swapsend":    "/swaps/relay/send",
+		"nanopublish": "/swaps/nano/publish",
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -259,25 +305,62 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 		var target, method string
 		switch {
 		case path == "block":
-			// privacy-redacted explorer block view
-			target = root + "/explorer/block?height=" + sanitizeDigits(q.Get("height"))
+			// privacy-redacted explorer block view. A non-numeric height is a 400, not
+			// silently digit-stripped to genesis (audit #94). NOTE: sanitizeDigits
+			// returns "0" for all-non-digit input, so validate the RAW param here.
+			if !isAllDigits(q.Get("height")) {
+				writeJSONError(w, http.StatusBadRequest, "bad height (want a non-negative integer)")
+				return
+			}
+			target = root + "/explorer/block?height=" + q.Get("height")
 			method = http.MethodGet
 		case path == "rawblock":
 			// full serialized block (hex) — the wallet scans this for its outputs
-			target = root + "/block?height=" + sanitizeDigits(q.Get("height"))
+			if !isAllDigits(q.Get("height")) {
+				writeJSONError(w, http.StatusBadRequest, "bad height (want a non-negative integer)")
+				return
+			}
+			target = root + "/block?height=" + q.Get("height")
+			method = http.MethodGet
+		case path == "rawblocks":
+			// RANGE of full serialized blocks (hex). The web wallet's sync() scans
+			// EXCLUSIVELY via this path; it was missing from the local --ui proxy, so a
+			// self-hosted wallet could not sync its balance (UI-decoupling audit, HIGH).
+			from := sanitizeDigits(q.Get("from"))
+			cnt := sanitizeDigits(q.Get("count"))
+			if cnt == "" || cnt == "0" {
+				cnt = "256"
+			}
+			if n, err := strconv.Atoi(cnt); err == nil && n > 256 {
+				cnt = "256"
+			}
+			target = root + "/blocks?from=" + from + "&count=" + cnt
 			method = http.MethodGet
 		case get[path] != "":
 			target = root + get[path]
 			method = http.MethodGet
 		case getQ[path] != "":
-			// forward sanitized pair/limit/interval/maker params to the node
+			// forward sanitized market-data + quote/tx params to the node.
 			fwd := url.Values{}
-			for _, k := range []string{"pair", "limit", "interval", "maker"} {
+			for _, k := range []string{"pair", "limit", "interval", "maker", "give", "get", "size", "hash"} {
 				if v := q.Get(k); v != "" {
 					fwd.Set(k, sanitizeParam(v))
 				}
 			}
 			target = root + getQ[path]
+			if qs := fwd.Encode(); qs != "" {
+				target += "?" + qs
+			}
+			method = http.MethodGet
+		case relayGetQ[path] != "":
+			// forward the swap relay params (swap_id/account/hash/key), 128-char cap.
+			fwd := url.Values{}
+			for _, k := range []string{"swap_id", "account", "hash", "key"} {
+				if v := q.Get(k); v != "" {
+					fwd.Set(k, sanitizeParamLong(v))
+				}
+			}
+			target = root + relayGetQ[path]
 			if qs := fwd.Encode(); qs != "" {
 				target += "?" + qs
 			}
@@ -333,6 +416,39 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 }
 
 // sanitizeDigits keeps only ASCII digits (block heights).
+// serveEmbeddedHTML writes an embedded HTML file's bytes directly (no FileServer
+// index.html→/ redirect), so a page like the marketing landing is reachable at a
+// stable path on a local node.
+func serveEmbeddedHTML(w http.ResponseWriter, sub fs.FS, name string) {
+	f, err := sub.Open(name)
+	if err != nil {
+		writeJSONError(w, http.StatusNotFound, "not found")
+		return
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "read error")
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(data)
+}
+
+// isAllDigits reports whether s is a non-empty run of ASCII digits (a valid
+// non-negative integer for a height/param, before any forwarding).
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func sanitizeDigits(s string) string {
 	var b strings.Builder
 	for _, c := range s {
@@ -365,6 +481,22 @@ func sanitizeHex(s string) string {
 func sanitizeParam(s string) string {
 	if len(s) > 64 {
 		s = s[:64]
+	}
+	var b strings.Builder
+	for _, c := range s {
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+			c == '/' || c == '_' || c == '.' || c == '-' {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
+}
+
+// sanitizeParamLong is sanitizeParam with a 128-char cap, for the swap-relay
+// params (a nano_ address is 65 chars; a 64-hex swap id/key/hash fits too).
+func sanitizeParamLong(s string) string {
+	if len(s) > 128 {
+		s = s[:128]
 	}
 	var b strings.Builder
 	for _, c := range s {

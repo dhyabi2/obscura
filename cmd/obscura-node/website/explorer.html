@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Obscura — live privacy explorer</title>
@@ -313,6 +314,11 @@
           <div class="kpi"><span>Median fee-rate</span><b id="kp-med">0</b></div>
         </div>
       </div>
+      <div class="glass w">
+        <h3>Node software versions</h3>
+        <div id="vchart"><div class="empty" style="color:var(--mut);font-size:13px;padding:14px 0">connecting…</div></div>
+        <div class="grow"><span class="muted" id="vchart-sub">this node's view of the network</span></div>
+      </div>
     </div>
   </div>
 
@@ -320,6 +326,7 @@
     <input id="q" placeholder="Jump to a block height (e.g. 42)" inputmode="numeric">
     <button onclick="search()">Open block</button>
   </div>
+  <div id="searchMsg" class="meta" style="margin:-4px 0 8px;color:#fbbf24;display:none"></div>
 
   <div class="sec-h"><h2>Block stream</h2><span class="meta">newest first · click a block for its (confidential) transactions</span></div>
   <div id="stream"><div class="muted" style="padding:14px">loading…</div></div>
@@ -404,14 +411,6 @@ function statCard(k,v,sub,spark){
 
 // escapeHtml — version strings are PEER-CONTROLLED; never inject them raw.
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-// versionsValue renders the software-version histogram (counts only, no addresses).
-function versionsValue(vc){
-  const keys=vc?Object.keys(vc):[];
-  if(!keys.length) return "—";
-  // most-common first, then by name
-  keys.sort((a,b)=>(vc[b]-vc[a])||(a<b?-1:1));
-  return keys.map(v=>`${Number(vc[v]).toLocaleString()}× <small>${escapeHtml(v)}</small>`).join("&nbsp;&nbsp;");
-}
 
 // per-asset decimal places (atomic-unit scale) — keep in sync with the wallet.
 const DEC={OBX:12,XNO:12,BTC:8};
@@ -917,7 +916,6 @@ async function refreshSummary(){
     statCard("Network hashrate",fmtHashrate(hr)) +
     statCard("Mempool",s.mempool,"pending") +
     (s.connected_peers!==undefined? statCard("Nodes seen",Number(s.connected_peers).toLocaleString(),(Number(s.known_nodes||0)).toLocaleString()+" known via PEX"):"") +
-    (s.version_counts? statCard("Node versions",versionsValue(s.version_counts),"this node's view"):"") +
     (s.tvl_obx!==undefined? statCard("Value locked",s.tvl_obx,(s.vaults||0)+" vaults"):"") +
     (liqStat? statCard("Total liquidity",liqStat.offers.toLocaleString(),"offer"+(liqStat.offers===1?"":"s")+(liqStat.makers!==null?(" · "+liqStat.makers+" maker"+(liqStat.makers===1?"":"s")):"")):"") +
     priceCards(s.prices);
@@ -926,9 +924,64 @@ async function refreshSummary(){
   document.getElementById("anonspark").innerHTML=sparkline(anonHist);
   document.getElementById("anonnow").textContent="now "+Number(s.anonymity_set).toLocaleString();
   document.getElementById("backend").textContent=(s.pow_backend?("PoW: "+s.pow_backend+" · "):"")+"coin "+s.coin+" ("+s.ticker+")";
+  // software-version distribution pie (LIVE: real connected-peer versions + this node)
+  renderVersionPie(s.version_counts);
   // block stream
   renderStream(s.latest||[],s.height);
   lastHeight=s.height;
+}
+
+// renderVersionPie draws the node software-version distribution as a dependency-free
+// SVG pie chart with a percentage legend. Data is the LIVE version_counts histogram
+// from /explorer/summary (real connected-peer versions + this node's own) — there is no
+// hardcoded/simulated fallback: with zero peers the node reports {version: 1}, which
+// renders as a single full-circle slice ("this node — 100%").
+const VPIE_COLORS=["#7c5cff","#22d3ee","#f472b6","#34d399","#fbbf24","#a78bfa","#38bdf8","#fb7185"];
+function renderVersionPie(vc){
+  const el=document.getElementById("vchart");
+  const sub=document.getElementById("vchart-sub");
+  if(!el) return;
+  const keys=vc?Object.keys(vc):[];
+  if(!keys.length){
+    // no live data yet (node unreachable / pre-first-poll) — honest empty state, never faked.
+    el.innerHTML='<div class="empty" style="color:var(--mut);font-size:13px;padding:14px 0">'+
+      (failures>0?'reconnecting…':'no version data')+'</div>';
+    if(sub) sub.textContent="this node's view of the network";
+    return;
+  }
+  keys.sort((a,b)=>(vc[b]-vc[a])||(a<b?-1:1)); // most common first, then by name
+  let total=0; keys.forEach(k=>{total+=Number(vc[k])||0;});
+  if(total<=0){el.innerHTML='<div class="empty" style="color:var(--mut);font-size:13px;padding:14px 0">no version data</div>';return;}
+  const cx=70,cy=70,r=64; let a0=-Math.PI/2; // start at 12 o'clock
+  const segs=[]; const legend=[];
+  keys.forEach((k,i)=>{
+    const cnt=Number(vc[k])||0; const frac=cnt/total; const pct=(frac*100);
+    const col=VPIE_COLORS[i%VPIE_COLORS.length];
+    if(keys.length===1){
+      // single version → full circle (an SVG arc can't draw 360°, so use a disc)
+      segs.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}"></circle>`);
+    }else{
+      const a1=a0+frac*2*Math.PI;
+      const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0);
+      const x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+      const large=(a1-a0)>Math.PI?1:0;
+      segs.push(`<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 ${large} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${col}"></path>`);
+      a0=a1;
+    }
+    const lbl=pct>=10?pct.toFixed(0):pct.toFixed(1);
+    legend.push(`<span><i style="background:${col}"></i>${escapeHtml(k)} <b style="color:var(--txt);font-weight:600;margin-left:2px">${lbl}%</b> <span class="muted">(${cnt.toLocaleString()})</span></span>`);
+  });
+  el.innerHTML=
+    `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">`+
+    `<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="node software version distribution">`+
+    segs.join("")+
+    `<circle cx="${cx}" cy="${cy}" r="30" fill="var(--panel)"></circle>`+ // donut hole
+    `<text x="${cx}" y="${cy-2}" text-anchor="middle" fill="var(--txt)" font-size="17" font-weight="700">${total.toLocaleString()}</text>`+
+    `<text x="${cx}" y="${cy+13}" text-anchor="middle" fill="var(--mut)" font-size="9" letter-spacing=".5">NODES</text>`+
+    `</svg>`+
+    `<div class="legend" style="flex-direction:column;align-items:flex-start;gap:7px;flex:1;min-width:120px">`+legend.join("")+`</div>`+
+    `</div>`;
+  if(sub) sub.textContent=keys.length+" version"+(keys.length===1?"":"s")+" · "+total.toLocaleString()+" node"+(total===1?"":"s")+" (incl. this one)";
 }
 function sparkHeight(){return "";} // height shown as number; anon set carries the sparkline
 
@@ -1007,7 +1060,16 @@ async function openBlock(h){
   }catch(e){alert("Block "+h+": "+e.message);}
 }
 function closeM(){document.getElementById("modal").classList.remove("open");}
-function search(){const v=document.getElementById("q").value.trim();if(v!=="")openBlock(parseInt(v,10));}
+function searchMsg(t){const m=document.getElementById("searchMsg");if(!m)return;if(!t){m.style.display="none";return;}m.textContent=t;m.style.display="block";}
+function search(){
+  const v=document.getElementById("q").value.trim();
+  if(v==="")return;
+  searchMsg("");
+  if(/^\d+$/.test(v)){openBlock(parseInt(v,10));return;}            // a block height
+  if(/^(nano_|xrb_)[0-9a-z]{59,60}$/.test(v)){searchMsg("Address search isn't indexed yet — Obscura addresses are confidential by design. Enter a block height to browse.");return;}
+  if(/^[0-9a-fA-F]{64}$/.test(v)){searchMsg("Transaction-hash lookup isn't indexed yet. Click a block in the stream to see its (confidential) transactions, or enter a block height.");return;}
+  searchMsg("Enter a block height (a number). Tx-hash & address search are coming soon.");
+}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeM();});
 document.getElementById("q").addEventListener("keydown",e=>{if(e.key==="Enter")search();});
 

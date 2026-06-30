@@ -24,11 +24,13 @@ import (
 	"obscura/pkg/config"
 	"obscura/pkg/fee"
 	"obscura/pkg/mempool"
+	"obscura/pkg/nanorpc"
 	"obscura/pkg/pow"
 	"obscura/pkg/stark"
 	"obscura/pkg/swapbook"
 	"obscura/pkg/swapd"
 	"obscura/pkg/swapnet"
+	"obscura/pkg/swaprelay"
 	"obscura/pkg/tx"
 	"obscura/pkg/wallet"
 )
@@ -89,11 +91,13 @@ type SwapCoordinator interface {
 type PeerProvider interface {
 	PeerCount() int
 	PeerAddrs() []string
-	// PeerVersionCounts returns a software-version histogram of connected peers + self
-	// (aggregated counts only, no addresses). KnownAddrCount is the PEX-learned address
-	// count — a wider proxy for network breadth.
-	PeerVersionCounts() map[string]int
+	// KnownAddrCount + PeerVersionCounts back the explorer's network panel (PEX-known
+	// address count + the software-version distribution across connected peers + self,
+	// counts only). mainnet-specific: mainnet's explorer.go calls these directly,
+	// whereas root uses an optional type-assertion. The production *p2p.Node + the
+	// test stubs implement them.
 	KnownAddrCount() int
+	PeerVersionCounts() map[string]int
 	// PeerForMaker resolves the source peer that relayed a live offer from the given
 	// maker pubkey (the maker-pubkey -> peer directory), so /swaps/take can route the
 	// swap Init to the maker rather than guessing PeerAddrs()[0]. ok is false if no
@@ -111,6 +115,14 @@ type Server struct {
 	peers      PeerProvider
 	nano       swapd.NanoClient // XNO swap-execution backend (operator-provided; nil disables XNO execution)
 	swaps      SwapCoordinator  // in-flight swap engine (optional; nil keeps /swaps/* empty)
+
+	// NON-CUSTODIAL browser swap (pkg/swaprelay + pkg/nanorpc). swapRelay bridges a
+	// browser taker's swap envelopes to the local maker session; nanoPub is the
+	// secret-free Nano client used to read/publish the blocks the BROWSER signed.
+	// Both nil keeps /swaps/relay/* + /swaps/nano/* returning 503. Wired via
+	// SetSwapRelay. Safe to expose publicly: the browser holds every key.
+	swapRelay *swaprelay.Relay
+	nanoPub   *nanorpc.Client
 
 	// XNO PROCEEDS WALLET. The miner sells OBX for XNO; xnoSeed is the miner seed
 	// from which the recoverable XNO proceeds account is derived
@@ -242,6 +254,11 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	// --- PUBLIC: read-only / wallet-facing (no auth) ---
 	mux.HandleFunc("/status", s.handleStatus)
+	// Integrator endpoints (docs/NODE_API_AUDIT.md): node/network identity,
+	// machine-readable params, and tx-by-hash lookup.
+	mux.HandleFunc("/version", s.handleVersion)
+	mux.HandleFunc("/params", s.handleParams)
+	mux.HandleFunc("/tx", s.handleTx)
 	mux.HandleFunc("/height", s.handleHeight)
 	mux.HandleFunc("/accvalue", s.handleAccValue)
 	mux.HandleFunc("/block", s.handleBlock)
@@ -265,6 +282,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/liquidity", s.handleLiquidity)
 	mux.HandleFunc("/swaps/active", s.handleSwapsActive)
 	mux.HandleFunc("/swaps/take", s.handleSwapsTake)
+	// NON-CUSTODIAL browser swap relay: the browser runs the taker (WASM) and
+	// signs its own XNO + OBX legs; these endpoints only relay envelopes to the
+	// local maker session and read/publish browser-signed Nano blocks. Public-safe
+	// (no operator funds at risk) — unlike /swaps/take.
+	mux.HandleFunc("/swaps/relay/open", s.handleSwapRelayOpen)
+	mux.HandleFunc("/swaps/relay/send", s.handleSwapRelaySend)
+	mux.HandleFunc("/swaps/relay/recv", s.handleSwapRelayRecv)
+	mux.HandleFunc("/swaps/swapout", s.handleSwapOut)
+	mux.HandleFunc("/swaps/nano/account", s.handleNanoAccount)
+	mux.HandleFunc("/swaps/nano/receivable", s.handleNanoReceivable)
+	mux.HandleFunc("/swaps/nano/block", s.handleNanoBlock)
+	mux.HandleFunc("/swaps/nano/publish", s.handleNanoPublish)
 	// Matching-engine market-data + order status: the executed-trade tape, OHLCV
 	// candles, 24h stats, and per-maker / per-order fill state. CORS-enabled,
 	// read-only, off-chain (tape is per-node, non-consensus).
@@ -304,7 +333,10 @@ func (s *Server) Handler() http.Handler {
 	// NOTE: the /witness endpoint was removed — it leaked which output a wallet
 	// was interested in (deanonymization) and was an O(N) DoS amplifier. The
 	// sound wallet builds spends entirely offline and never needs it.
-	return mux
+	//
+	// CORS: wrap the whole surface so browser clients can call a node directly
+	// (header-only; does not relax operator gating). Disable with OBX_RPC_NO_CORS=1.
+	return corsMiddleware(mux)
 }
 
 // envTrue reports whether an env var is set to a truthy value (1/true/yes/on).
@@ -386,13 +418,26 @@ type StatusResponse struct {
 	Backend       string `json:"accumulator_backend"`
 	PoWBackend    string `json:"pow_backend"`
 	MempoolSize   int    `json:"mempool_size"`
+
+	// Sync/health signal an integrator can trust BEFORE crediting deposits (audit
+	// IMPORTANT #6). TipHeight mirrors Height (explicit name); PeerCount is the
+	// connected-peer count. BestKnownHeight is the highest tip any connected peer has
+	// advertised (omitted when no peer-height signal is available). Synced is the
+	// best-effort verdict; SyncBasis names exactly how it was derived so a client is
+	// never misled about its reliability.
+	TipHeight       uint64 `json:"tip_height"`
+	PeerCount       int    `json:"peer_count"`
+	BestKnownHeight uint64 `json:"best_known_height,omitempty"`
+	Synced          bool   `json:"synced"`
+	SyncBasis       string `json:"sync_basis"`
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	tip := s.chain.Height()
 	resp := StatusResponse{
 		Coin:          config.CoinName,
 		Ticker:        config.Ticker,
-		Height:        s.chain.Height(),
+		Height:        tip,
 		Difficulty:    s.chain.ExpectedDifficulty(),
 		EmittedAtomic: s.chain.Emitted(),
 		EmittedOBX:    config.FormatAmount(s.chain.Emitted()),
@@ -400,11 +445,43 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		AccSize:       s.chain.AccSize(),
 		Backend:       config.AccumulatorBackend,
 		PoWBackend:    pow.BackendName,
+		TipHeight:     tip,
 	}
 	if s.mp != nil {
 		resp.MempoolSize = s.mp.Size()
 	}
+	s.fillSyncStatus(&resp)
 	writeJSON(w, resp)
+}
+
+// fillSyncStatus derives the sync/health fields. It prefers a REAL comparison of
+// our tip against the best height our peers advertise (when the p2p layer exposes
+// the optional BestKnownHeight capability); otherwise it falls back to a documented
+// peer-count heuristic. It never fabricates: SyncBasis always states the method.
+func (s *Server) fillSyncStatus(resp *StatusResponse) {
+	if s.peers == nil {
+		resp.Synced = false
+		resp.SyncBasis = "no_peer_provider"
+		return
+	}
+	resp.PeerCount = s.peers.PeerCount()
+	if bp, ok := s.peers.(interface {
+		BestKnownHeight() (uint64, int, bool)
+	}); ok && bp != nil {
+		if best, _, known := bp.BestKnownHeight(); known {
+			resp.BestKnownHeight = best
+			resp.Synced = resp.TipHeight >= best
+			resp.SyncBasis = "tip>=best_known_peer_height"
+			return
+		}
+		// peers may be connected but none has advertised a height yet.
+		resp.Synced = resp.PeerCount > 0
+		resp.SyncBasis = "no_peer_height_advertised_yet; heuristic synced=peers>0"
+		return
+	}
+	// p2p layer can't report peer heights: best-effort heuristic only.
+	resp.Synced = resp.PeerCount > 0
+	resp.SyncBasis = "peer_count_only_no_height_signal; heuristic synced=peers>0"
 }
 
 func (s *Server) handleHeight(w http.ResponseWriter, r *http.Request) {
@@ -587,6 +664,22 @@ func (s *Server) handleAccValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBlock(w http.ResponseWriter, r *http.Request) {
+	// Block-by-hash: ?hash=<64hex> resolves the block by its Header.ID() via a
+	// bounded backward scan (lets an explorer search a block hash / follow prev_hash).
+	if hq := r.URL.Query().Get("hash"); hq != "" {
+		if !validNanoHash(hq) { // reuse: a plain 64-hex check (not nano-specific)
+			http.Error(w, "bad hash", 400)
+			return
+		}
+		h, ok := s.findBlockHeightByHash(hq)
+		if !ok {
+			http.Error(w, "not found", 404)
+			return
+		}
+		b, _ := s.chain.BlockByHeight(h)
+		writeJSON(w, map[string]string{"block": hex.EncodeToString(b.Serialize())})
+		return
+	}
 	hs := r.URL.Query().Get("height")
 	h, err := strconv.ParseUint(hs, 10, 64)
 	if err != nil {
@@ -739,10 +832,27 @@ func (s *Server) handleOffersJSON(w http.ResponseWriter, r *http.Request) {
 		rj, _ := strconv.ParseFloat(out[j].Rate, 64)
 		return ri < rj
 	})
-	if len(out) > 2000 {
-		out = out[:2000]
+	// Pagination/totals (audit IMPORTANT #8): report the full book size so a client
+	// knows when the response was truncated, and honor an explicit ?limit (default
+	// 2000, hard cap 5000). `offers` stays the same shape the UI reads.
+	total := len(out)
+	limit := 2000
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 5000 {
+			limit = n
+		}
 	}
-	writeJSON(w, map[string][]OfferJSON{"offers": out})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	writeJSON(w, OffersJSONResponse{Offers: out, Total: total, Truncated: total > len(out)})
+}
+
+// OffersJSONResponse is the decoded order-book listing with pagination metadata.
+type OffersJSONResponse struct {
+	Offers    []OfferJSON `json:"offers"`
+	Total     int         `json:"total"`     // full live-book size before truncation
+	Truncated bool        `json:"truncated"` // true when more offers exist than returned
 }
 
 // handlePostOffer accepts a hex-serialized swap offer and gossips it.
@@ -822,4 +932,15 @@ func (s *Server) handleSubmitTx(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeErr emits a JSON error body {"error":msg} WITH the correct HTTP status, so a
+// generic client can branch on the status code while the UI (which reads `.error`)
+// keeps working. Unifies the order-book/swap routes that historically returned
+// HTTP 200 with {"error":...} (audit BLOCKER: inconsistent error contract). Use it
+// for the JSON-envelope routes; the plain-text core routes keep http.Error.
+func writeErr(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }

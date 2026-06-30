@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- 'unsafe-eval' is required by the vendored mermaid (it uses the Function
+       constructor to render the diagram); the rest of the policy still hardens
+       default-src/object-src/frame/base-uri. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Obscura (OBX) — Privacy that strengthens with adoption</title>
@@ -210,6 +214,13 @@ classDef stop fill:#2a0f12,stroke:#ff5a5a,color:#ffd9d9;
     },
     flowchart: { curve: 'basis', nodeSpacing: 30, rankSpacing: 46, htmlLabels: true, useMaxWidth: true, padding: 8 }
   });
+  // Mobile nav toggle (audit #6: index.html doesn't load app.js, so the .nav-toggle
+  // had no handler — the hamburger was dead. The .nav-links.open CSS already exists).
+  (function(){
+    var t=document.querySelector(".nav-toggle"), l=document.querySelector(".nav-links");
+    if(t&&l){ t.addEventListener("click",function(){l.classList.toggle("open");});
+      l.querySelectorAll("a").forEach(function(a){a.addEventListener("click",function(){l.classList.remove("open");});}); }
+  })();
 </script>
 </body>
 </html>

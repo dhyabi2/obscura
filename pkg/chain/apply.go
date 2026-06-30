@@ -62,10 +62,14 @@ func (c *Chain) applyBlock(b *block.Block, persist bool) error {
 	}
 	cb := b.Txs[0]
 
-	// 1) durably persist the block first.
+	// 1) durably persist the block first (body + the additive txid->height query
+	// index, committed atomically in the same write transaction).
 	if persist && c.db != nil {
 		if err := c.db.Update(func(dtx *bolt.Tx) error {
-			return dtx.Bucket(bucketBlocks).Put(heightKey(b.Header.Height), b.Serialize())
+			if err := dtx.Bucket(bucketBlocks).Put(heightKey(b.Header.Height), b.Serialize()); err != nil {
+				return err
+			}
+			return indexBlockTxs(dtx, b)
 		}); err != nil {
 			return err
 		}

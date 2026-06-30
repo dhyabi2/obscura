@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Download Obscura — wallet · swap · one-click miner</title>
@@ -155,7 +156,7 @@ Get-FileHash .\Obscura-windows-amd64.zip -Algorithm SHA256</pre>
 
   <div class="steps2">
     <h3>Prefer to build from source?</h3>
-    <pre>git clone &lt;repo&gt; &amp;&amp; cd obscura
+    <pre>git clone https://github.com/dhyabi2/obscura &amp;&amp; cd obscura
 CGO_ENABLED=0 go build -o obscura-node ./cmd/obscura-node
 ./obscura-node --ui --mine        <span class="muted"># wallet + swap + mining desktop app</span></pre>
     <p class="tiny muted">Pure Go, CGO-free — cross-compiles to every OS. See the <a href="/docs.html#quickstart" style="color:#9fb0ff">quickstart</a>.</p>

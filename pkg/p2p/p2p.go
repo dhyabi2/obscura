@@ -115,13 +115,14 @@ var networkMagic = func() uint32 {
 }()
 
 type peer struct {
-	conn      net.Conn
-	wmu       sync.Mutex // serializes writes to conn (prevents framing corruption)
-	score     int        // HARD misbehavior (malformed/abuse) → persistent IP/group ban
-	softScore int        // SOFT, connection-local (fork/sync block-validation) → drop only, NO persistent ban
-	outbound  bool
-	listen    string // peer's advertised listen address (for PEX)
-	version   string // peer's advertised software version (hello trailer; "" if un-upgraded)
+	conn       net.Conn
+	wmu        sync.Mutex // serializes writes to conn (prevents framing corruption)
+	score      int        // HARD misbehavior (malformed/abuse) → persistent IP/group ban
+	softScore  int        // SOFT, connection-local (fork/sync block-validation) → drop only, NO persistent ban
+	outbound   bool
+	listen     string // peer's advertised listen address (for PEX)
+	version    string // peer's advertised software version (hello trailer; "" if un-upgraded)
+	bestHeight uint64 // highest chain height this peer has advertised (hello + msgTip); advisory, like version
 
 	// audit fix: per-peer inbound token bucket (rate limiting). Guarded by Node.mu.
 	tokens   float64 // current tokens; one consumed per inbound message
@@ -653,6 +654,8 @@ func (n *Node) checkHello(p *peer, payload []byte) bool {
 		return false
 	}
 	// height(8) at [6:14]; advLen(2) at [14:16]; advertise; then observed (rest).
+	// Record the peer's advertised tip so /status can derive a sync/health flag.
+	p.bestHeight = binary.BigEndian.Uint64(payload[6:14])
 	advLen := int(binary.BigEndian.Uint16(payload[14:16]))
 	if 16+advLen > len(payload) {
 		return false
@@ -685,6 +688,9 @@ func (n *Node) dispatch(p *peer, typ byte, payload []byte) bool {
 		_ = n.send(p, msgTip, encodeU64(n.chain.Height()))
 	case msgTip:
 		peerH := decodeU64(payload)
+		if peerH > p.bestHeight {
+			p.bestHeight = peerH // keep the freshest advertised tip for /status sync detection
+		}
 		ourH := n.chain.Height()
 		// FAR behind a peer (fresh / long-restarted node): fast-forward via a verified
 		// snapshot instead of re-verifying every block. Separate, bounded path; on failure
@@ -1087,6 +1093,27 @@ func (n *Node) PeerCount() int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return len(n.peers)
+}
+
+// BestKnownHeight returns the highest chain height advertised by any currently-
+// connected peer (learned from the hello handshake + tip gossip) and the
+// connected-peer count, so /status can derive a sync/health flag an integrator can
+// trust before crediting deposits. ok is false when NO peer has advertised a height
+// yet (e.g. zero peers, or only un-synced peers) — callers must NOT treat height 0
+// as "synced". Aggregate only — never reveals which peer is at which height.
+func (n *Node) BestKnownHeight() (height uint64, peers int, ok bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	peers = len(n.peers)
+	for _, p := range n.peers {
+		if p.bestHeight > 0 {
+			ok = true
+			if p.bestHeight > height {
+				height = p.bestHeight
+			}
+		}
+	}
+	return height, peers, ok
 }
 
 // PeerAddrs returns the remote addresses of currently-connected peers.

@@ -13,13 +13,17 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"math/big"
 	"strconv"
 	"syscall/js"
+
+	"filippo.io/edwards25519"
 
 	"obscura/pkg/block"
 	"obscura/pkg/commit"
 	"obscura/pkg/config"
 	"obscura/pkg/mnemonic"
+	"obscura/pkg/nanocrypto"
 	"obscura/pkg/swapbook"
 	"obscura/pkg/tx"
 	"obscura/pkg/wallet"
@@ -296,7 +300,94 @@ func obxScanUndo(this js.Value, args []js.Value) any {
 	return map[string]any{"ok": true}
 }
 
+// ---- XNO (Nano) side: non-custodial swap funding key ------------------------
+//
+// The browser holds its OWN XNO funding key, derived deterministically from the
+// same 24-word OBX seed (distinct domain tag, so it is independent of every other
+// key). The swap's XNO leg is signed RIGHT HERE in the browser via pkg/nanocrypto
+// — the private scalar NEVER leaves the page. The node only relays the signed
+// block onto the Nano ledger (pkg/nanorpc). This is what makes the swap truly
+// non-custodial: no operator fund-secret, no custody on the backend.
+
+// xnoSecret derives the browser wallet's raw ed25519 XNO funding scalar from the
+// loaded seed. The domain tag keeps it separate from the OBX stealth keys, the
+// vault key, and the node operator's "Obscura/xno-proceeds/v1" account.
+func xnoSecret() *edwards25519.Scalar {
+	return commit.HashToScalar([]byte("Obscura/xno-swap/v1"), seed)
+}
+
+// xnoAccount() -> {account, pubkey} : the browser's nano_ funding address derived
+// from the seed. PUBLIC only — no secret is returned. The user funds THIS address
+// with XNO; the swap then spends from it, signed locally.
+func xnoAccount(this js.Value, args []js.Value) any {
+	if w == nil || len(seed) == 0 {
+		return errObj("no wallet")
+	}
+	pub := nanocrypto.PubFromSecret(xnoSecret())
+	addr, err := nanocrypto.EncodeAddress(pub)
+	if err != nil {
+		return errObj("xno address: " + err.Error())
+	}
+	return map[string]any{"account": addr, "pubkey": hex.EncodeToString(pub)}
+}
+
+// xnoSignBlock(previousHex, repAddr, balanceDec, linkHex) -> {account, account_pub,
+// signature, hash} : signs ONE Nano state block locally. The page gathers the block
+// fields (frontier, representative, resulting balance, link) from the node's Nano
+// RPC reads, computes the resulting balance + link in JS, and calls this to get the
+// ed25519-blake2b signature over the canonical block hash. The page then hands
+// {account_pub, previous, rep, balance, link, signature, subtype} to the node relay,
+// which only attaches proof-of-work and publishes via `process` — it never signs and
+// never sees this scalar.
+func xnoSignBlock(this js.Value, args []js.Value) any {
+	if w == nil || len(seed) == 0 {
+		return errObj("no wallet")
+	}
+	if len(args) < 4 {
+		return errObj("need previousHex, repAddr, balanceDec, linkHex")
+	}
+	previousHex := args[0].String()
+	repAddr := args[1].String()
+	balanceDec := args[2].String()
+	linkHex := args[3].String()
+
+	prev, err := hex.DecodeString(previousHex)
+	if err != nil || len(prev) != 32 {
+		return errObj("previous must be 64 hex chars")
+	}
+	link, err := hex.DecodeString(linkHex)
+	if err != nil || len(link) != 32 {
+		return errObj("link must be 64 hex chars")
+	}
+	repPub, err := nanocrypto.DecodeAddress(repAddr)
+	if err != nil {
+		return errObj("bad representative: " + err.Error())
+	}
+	bal, ok := new(big.Int).SetString(balanceDec, 10)
+	if !ok || bal.Sign() < 0 || len(bal.Bytes()) > 16 {
+		return errObj("balance must be a non-negative <=128-bit decimal raw value")
+	}
+
+	sec := xnoSecret()
+	pub := nanocrypto.PubFromSecret(sec)
+	hash := nanocrypto.StateHash(pub, prev, repPub, bal, link)
+	sig := nanocrypto.Sign(sec, hash)
+	addr, err := nanocrypto.EncodeAddress(pub)
+	if err != nil {
+		return errObj("xno address: " + err.Error())
+	}
+	return map[string]any{
+		"account":     addr,
+		"account_pub": hex.EncodeToString(pub),
+		"signature":   hex.EncodeToString(sig),
+		"hash":        hex.EncodeToString(hash),
+	}
+}
+
 func main() {
+	js.Global().Set("xnoAccount", js.FuncOf(xnoAccount))
+	js.Global().Set("xnoSignBlock", js.FuncOf(xnoSignBlock))
+	js.Global().Set("swapTakerRun", js.FuncOf(swapTakerRun))
 	js.Global().Set("obxParseOffer", js.FuncOf(obxParseOffer))
 	js.Global().Set("obxReleaseReservation", js.FuncOf(obxReleaseReservation))
 	js.Global().Set("obxScanUndo", js.FuncOf(obxScanUndo))

@@ -61,7 +61,7 @@ type UTXOEntry struct {
 type Chain struct {
 	mu sync.RWMutex
 
-	G   group.Group
+	G group.Group
 	// stateRootLocked memoization: the residual-state commitment only changes when a block is
 	// applied / the chain is reset / a snapshot is restored, so cache it and invalidate at
 	// exactly those points (stateRootLocked is read only by template+validate+genesis, all at a
@@ -76,15 +76,15 @@ type Chain struct {
 	// UTXO is DERIVED, not stored: an output is unspent iff its coin record exists
 	// (coinstore) and its key is NOT in the `spent` set below — so the live set is
 	// disk-backed and O(1) in RAM (Track A; docs/SCALING_100M.md).
-	spent     *diskSet // output keys spent transparently (the "removed from utxo" set)
+	spent *diskSet // output keys spent transparently (the "removed from utxo" set)
 	// "every coin ever" (anonymity-set / ring membership) is DISK-backed in bolt
 	// (coinstore.go) — only an O(1) count lives in RAM (Track A; docs/SCALING_100M.md).
 	coinCount uint64 // number of coins ever created (== next creation index)
 	// disk-backed add-only sets (O(1) RAM; docs/SCALING_100M.md): the nullifier
 	// double-spend set and the output-prime uniqueness set.
-	tags      *diskSet               // key-image / nullifier set (double-spend)
-	outPrimes *diskSet               // output-prime uniqueness set
-	swaps     map[string]*SwapEntry  // hex(SwapKey) -> live atomic-swap contract
+	tags      *diskSet              // key-image / nullifier set (double-spend)
+	outPrimes *diskSet              // output-prime uniqueness set
+	swaps     map[string]*SwapEntry // hex(SwapKey) -> live atomic-swap contract
 	// swapNonces is the CONSENSUS uniqueness set over every atomic-swap adaptor
 	// pre-signature nonce ClaimR ever funded on-chain (audit #14). Reusing R across
 	// two claims under the same aggregate key leaks the secret share (see
@@ -98,21 +98,21 @@ type Chain struct {
 	// the SAME snapshot/restore+replay path as zkNull: cleared in resetState, restored
 	// from snapshot, repopulated on apply (so a rolled-back swap's R is dropped by the
 	// restore and re-added on re-include).
-	swapNonces map[string]bool       // hex(ClaimR) -> funded (adaptor-nonce uniqueness)
-	vaults    map[string]*VaultEntry // hex(VaultKey) -> live staking vault deposit
-	accValues map[string]bool        // hex(blake2b(accValueBytes)) -> seen (checkpoint set)
+	swapNonces map[string]bool        // hex(ClaimR) -> funded (adaptor-nonce uniqueness)
+	vaults     map[string]*VaultEntry // hex(VaultKey) -> live staking vault deposit
+	accValues  map[string]bool        // hex(blake2b(accValueBytes)) -> seen (checkpoint set)
 
 	headers []block.Header // active chain, index by height
 	byHash  map[[32]byte]uint64
 	blocks  map[uint64]*block.Block
 
 	// fork-choice block tree (all known blocks incl. side branches)
-	nodes    map[[32]byte]*chainNode     // block hash -> node
-	orphans  map[[32]byte][]*block.Block // parent hash -> children awaiting parent
-	orphanMeta map[[32]byte]orphanMeta   // orphan block hash -> {parent, bytes} (for byte-bound + eviction)
-	orphanFIFO [][32]byte                // orphan block hashes in arrival order (FIFO eviction queue)
-	orphanBytes int                      // running sum of buffered orphan body bytes (anti-DoS bound)
-	bestHash [32]byte                    // hash of the active tip (max cumulative work)
+	nodes       map[[32]byte]*chainNode     // block hash -> node
+	orphans     map[[32]byte][]*block.Block // parent hash -> children awaiting parent
+	orphanMeta  map[[32]byte]orphanMeta     // orphan block hash -> {parent, bytes} (for byte-bound + eviction)
+	orphanFIFO  [][32]byte                  // orphan block hashes in arrival order (FIFO eviction queue)
+	orphanBytes int                         // running sum of buffered orphan body bytes (anti-DoS bound)
+	bestHash    [32]byte                    // hash of the active tip (max cumulative work)
 
 	emitted       uint64            // total atomic units emitted
 	incentivePool uint64            // accumulated holding-bonus pool
@@ -137,15 +137,15 @@ type Chain struct {
 	// Poseidon commitment tree (the STARK-friendly accumulator); coin outputs append
 	// their CMLeaf. cmRoots whitelists recent roots as spend anchors; zkNull is the
 	// revealed-serial nullifier set. All rebuilt on replay / restored from snapshot.
-	cmTree      *stark.EpochIMT
-	cmRoots     map[string]bool // hex(CM root) -> valid spend anchor (final ∪ windowed current)
-	cmFinal     map[string]bool // finalized-epoch terminal roots — PERMANENT anchors (never
-	                            // evicted; bounded by #epochs = totalCoins/2^ZKDepth), so coins in
-	                            // old epochs stay spendable (review finding: window-only evicts them)
+	cmTree  *stark.EpochIMT
+	cmRoots map[string]bool // hex(CM root) -> valid spend anchor (final ∪ windowed current)
+	cmFinal map[string]bool // finalized-epoch terminal roots — PERMANENT anchors (never
+	// evicted; bounded by #epochs = totalCoins/2^ZKDepth), so coins in
+	// old epochs stay spendable (review finding: window-only evicts them)
 	cmRootOrder []string        // FIFO of CURRENT-epoch root snapshots, for rolling-window eviction
 	zkNull      map[string]bool // hex(serial nullifier) -> spent (UNBOUNDED — nullifiers
-	                            // can never be forgotten without enabling double-spend;
-	                            // bounding needs a non-membership accumulator, Track C)
+	// can never be forgotten without enabling double-spend;
+	// bounding needs a non-membership accumulator, Track C)
 
 	// verifiedProofs caches txids whose expensive proofs (range/ownership/value/
 	// key-image/anon/conservation) this node has ALREADY verified — once during
@@ -201,6 +201,10 @@ var (
 	bucketPrimeSet = []byte("primeset")
 	bucketSpentIdx = []byte("spentidx")
 	bucketSpentSet = []byte("spentset")
+	// bucketTxIndex maps a 32-byte txid -> 8-byte active-chain height. ADDITIVE,
+	// NON-CONSENSUS query index (powers RPC /tx O(1) lookup); never read during
+	// validation. Maintained on block apply + reorg, built once on open if absent.
+	bucketTxIndex = []byte("txindex")
 	// per-count running set commitments (state-root precursor; see diskset.go).
 	bucketTagCommit   = []byte("tagcommit")
 	bucketPrimeCommit = []byte("primecommit")
@@ -213,6 +217,7 @@ var allBuckets = [][]byte{
 	bucketTagIdx, bucketTagSet, bucketPrimeIdx, bucketPrimeSet,
 	bucketSpentIdx, bucketSpentSet, bucketMeta,
 	bucketTagCommit, bucketPrimeCommit, bucketSpentCommit,
+	bucketTxIndex,
 }
 
 // New creates (or opens) a chain at dir. If empty, the genesis block is created.
@@ -222,7 +227,7 @@ func New(dir string) (*Chain, error) {
 		return nil, err
 	}
 	c := &Chain{
-		G:              G,
+		G: G,
 		// value-only: the accumulator value is a header commitment; the production
 		// spend path uses rings, not accumulator witnesses, so the O(n) member set is
 		// dropped (Track A — docs/SCALING_100M.md). Archive nodes needing witnesses
@@ -284,6 +289,12 @@ func New(dir string) (*Chain, error) {
 		if err := c.initGenesis(); err != nil {
 			return nil, err
 		}
+	}
+	// Build the additive txid->height query index from persisted bodies if a
+	// pre-existing database lacks it (no-op once populated; kept current by the
+	// apply/reorg hooks thereafter). Non-consensus — failure here is non-fatal.
+	if err := c.buildTxIndexIfAbsent(); err != nil {
+		return nil, err
 	}
 	c.indexActiveChain() // build the fork-choice node tree from the active chain
 	return c, nil

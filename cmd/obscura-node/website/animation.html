@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>How an Obscura transaction travels</title>
@@ -513,6 +514,10 @@
 </style>
 </head>
 <body>
+  <!-- Back-link (audit #13): when this page is opened DIRECTLY (not embedded in the
+       homepage iframe) it was a dead-end. Show a way back to the app, hidden when framed. -->
+  <a id="backlink" href="/home" style="position:fixed;top:14px;left:16px;z-index:50;display:none;text-decoration:none;font-size:13px;color:#9fb0ff;background:rgba(11,13,18,.7);border:1px solid rgba(159,176,255,.3);border-radius:8px;padding:6px 12px">← Obscura</a>
+  <script>if(window.top===window.self){var b=document.getElementById("backlink");if(b)b.style.display="inline-block";}</script>
   <header class="app">
     <div class="kicker">Obscura &nbsp;&middot;&nbsp; Private by design</div>
     <h1>How an Obscura transaction travels</h1>

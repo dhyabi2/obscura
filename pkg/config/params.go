@@ -273,7 +273,22 @@ var (
 
 	// AutoLiquidityMaxOffers caps how many auto-offers this node keeps outstanding
 	// at once (anti-spam on our own book share). Override: OBX_AUTO_LIQUIDITY_MAX_OFFERS.
-	AutoLiquidityMaxOffers = 8
+	// Default 16 so the book holds a real LADDER of competing price levels (depth),
+	// not one flat price.
+	AutoLiquidityMaxOffers = 16
+
+	// AutoLiquidityPriceStepPct is the per-tick bounded RANDOM-WALK step of the
+	// maker's mid price (fraction, e.g. 0.05 = ±5%). A moving mid makes the market
+	// DYNAMIC — the price chart actually moves instead of sitting on a flat line.
+	// The mid stays clamped to a band around the seed rate. Override:
+	// OBX_AUTO_LIQUIDITY_PRICE_STEP.
+	AutoLiquidityPriceStepPct = 0.05
+
+	// AutoLiquidityLadderStepPct is the price gap between adjacent ladder rungs
+	// (fraction, e.g. 0.012 = 1.2%). Each tick the loop posts a LADDER around the
+	// mid so there is competitive depth; the most aggressive (best-for-taker) rung
+	// is filled first. Override: OBX_AUTO_LIQUIDITY_LADDER_STEP.
+	AutoLiquidityLadderStepPct = 0.012
 
 	// AutoLiquidityIntervalSec is how often the loop re-evaluates spendable balance
 	// and tops up offers (slow — offer PoW is cheap but we are not a spammer).
@@ -319,6 +334,16 @@ func init() {
 	if v := os.Getenv("OBX_AUTO_LIQUIDITY_MAX_OFFERS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			AutoLiquidityMaxOffers = n
+		}
+	}
+	if v := os.Getenv("OBX_AUTO_LIQUIDITY_PRICE_STEP"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 && f < 0.5 {
+			AutoLiquidityPriceStepPct = f
+		}
+	}
+	if v := os.Getenv("OBX_AUTO_LIQUIDITY_LADDER_STEP"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 && f < 0.2 {
+			AutoLiquidityLadderStepPct = f
 		}
 	}
 	if v := os.Getenv("OBX_AUTO_LIQUIDITY_INTERVAL_SEC"); v != "" {

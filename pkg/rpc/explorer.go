@@ -179,16 +179,36 @@ type ExplorerBlock struct {
 
 func (s *Server) handleExplorerBlock(w http.ResponseWriter, r *http.Request) {
 	cors(w)
-	hs := r.URL.Query().Get("height")
-	h, err := strconv.ParseUint(hs, 10, 64)
-	if err != nil {
-		http.Error(w, "bad height", 400)
-		return
-	}
-	b, ok := s.chain.BlockByHeight(h)
-	if !ok {
-		http.Error(w, "not found", 404)
-		return
+	var (
+		h  uint64
+		b  *block.Block
+		ok bool
+	)
+	// Block-by-hash: ?hash=<64hex> resolves via a bounded backward scan (explorer
+	// "search by block hash"); otherwise ?height=N as before.
+	if hq := r.URL.Query().Get("hash"); hq != "" {
+		if !validNanoHash(hq) { // reuse: a plain 64-hex check (not nano-specific)
+			http.Error(w, "bad hash", 400)
+			return
+		}
+		h, ok = s.findBlockHeightByHash(hq)
+		if !ok {
+			http.Error(w, "not found", 404)
+			return
+		}
+		b, _ = s.chain.BlockByHeight(h)
+	} else {
+		var err error
+		h, err = strconv.ParseUint(r.URL.Query().Get("height"), 10, 64)
+		if err != nil {
+			http.Error(w, "bad height", 400)
+			return
+		}
+		b, ok = s.chain.BlockByHeight(h)
+		if !ok {
+			http.Error(w, "not found", 404)
+			return
+		}
 	}
 	var fees uint64
 	out := ExplorerBlock{
@@ -452,6 +472,11 @@ type SwapEvent struct {
 type ExplorerSwaps struct {
 	WindowBlocks int         `json:"window_blocks"`
 	Events       []SwapEvent `json:"events"`
+	// Pagination/totals (audit IMPORTANT #8): Total is the full event count found in
+	// the scan window; Truncated is true when more events existed than were returned.
+	// Honors ?limit (default 200, hard cap 1000).
+	Total     int  `json:"total"`
+	Truncated bool `json:"truncated"`
 }
 
 // handleExplorerSwaps reconstructs recent swap lifecycle events by scanning the
@@ -528,9 +553,17 @@ func (s *Server) handleExplorerSwaps(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if len(out.Events) > 200 {
-		out.Events = out.Events[:200]
+	out.Total = len(out.Events)
+	limit := 200
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
+			limit = n
+		}
 	}
+	if len(out.Events) > limit {
+		out.Events = out.Events[:limit]
+	}
+	out.Truncated = out.Total > len(out.Events)
 	writeJSON(w, out)
 }
 

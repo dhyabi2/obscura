@@ -87,7 +87,7 @@
     <div class="tabs">
       <div class="tab on" data-tab="wallet">Wallet</div>
       <div class="tab" data-tab="vaults">Vaults</div>
-      <div class="tab" data-tab="swap">Swap</div>
+      <div class="tab" data-tab="swap">DEX</div>
       <div class="tab" data-tab="xno">XNO proceeds</div>
     </div>
 
@@ -159,11 +159,16 @@
       </div>
       <div class="card glass" id="vaultDepositCard">
         <h2>Stake (deposit)</h2>
+        <div class="muted" style="font-size:13px;margin-bottom:8px">Available to stake: <b id="vaultAvailAmt">—</b> <span class="muted" style="font-size:12px">(stake fee 0.01 OBX)</span></div>
         <div class="row">
-          <div style="flex:1"><label>Amount (OBX)</label><input id="vAmt" inputmode="decimal" placeholder="10"></div>
+          <div style="flex:1">
+            <label>Amount (OBX) <a href="#" onclick="vaultMax();return false" style="color:var(--accent);font-size:11px;font-weight:400;text-decoration:none" title="stake your full available balance (minus the fee)">Max — stake all</a></label>
+            <input id="vAmt" inputmode="decimal" placeholder="10" oninput="vaultAmtHint()">
+          </div>
           <div style="flex:1"><label>Term</label><select id="vTerm"></select></div>
         </div>
-        <div class="row" style="margin-top:12px"><button onclick="vaultDeposit()">Stake</button></div>
+        <div id="vDepHint" class="muted" style="font-size:12px;margin-top:6px"></div>
+        <div class="row" style="margin-top:12px"><button id="vStakeBtn" onclick="vaultDeposit()">Stake</button></div>
         <div id="vDepMsg"></div>
       </div>
       <div class="card glass">
@@ -174,6 +179,48 @@
 
     <!-- SWAP -->
     <section id="t-swap" class="hide">
+      <!-- ONE-BUTTON NON-CUSTODIAL SWAP. The browser runs the taker entirely
+           client-side (WASM): it signs its own XNO lock and OBX claim; the node
+           only relays. Pay XNO, receive OBX — everything else is automated. -->
+      <div class="card glass" id="obCard" style="background:linear-gradient(180deg,rgba(167,139,250,.10),rgba(34,211,238,.04));border:1px solid rgba(167,139,250,.35)">
+        <h2>Trade <span class="pill" id="obSidePill">Buy OBX</span></h2>
+        <div class="muted" id="obBalances" style="font-size:13px;margin-bottom:10px">Your balances — <b>OBX</b> <span id="obBalObx">—</span> · <b>XNO</b> <span id="obBalXno">—</span></div>
+        <!-- BUY / SELL — two buttons; users grasp buy/sell faster than "swap" -->
+        <div class="row" style="gap:8px;margin-bottom:10px">
+          <button id="obBuyTab" onclick="obSetSide('buy')" style="flex:1;padding:10px 0;border-radius:9px;background:rgba(74,222,128,.18);border:1px solid rgba(74,222,128,.55);color:#86efac;font-weight:700;cursor:pointer">Buy OBX</button>
+          <button id="obSellTab" onclick="obSetSide('sell')" style="flex:1;padding:10px 0;border-radius:9px;background:transparent;border:1px solid rgba(148,163,184,.3);color:var(--muted);font-weight:700;cursor:pointer">Sell OBX</button>
+        </div>
+        <div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <label id="obPayLbl">You pay (XNO)</label>
+            <input id="obPay" inputmode="decimal" placeholder="0.0001" oninput="obQuote()">
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label id="obGetLbl">You receive (OBX, est.)</label>
+            <input id="obGet" value="—" readonly style="opacity:.85">
+          </div>
+        </div>
+        <div id="obQuoteLine" class="muted" style="font-size:13px;margin-top:8px"></div>
+        <div id="obFund" style="font-size:13px;margin-top:8px"></div>
+        <div class="row" style="margin-top:12px">
+          <button id="obSwapBtn" onclick="obAction()" style="font-size:16px;padding:12px 20px">Buy OBX now</button>
+        </div>
+        <div id="obStatus" style="margin-top:12px"></div>
+        <div class="muted" style="font-size:12px;margin-top:8px">Keys never leave this page. <b>Buy</b> swaps instantly (pay XNO → receive OBX). <b>Sell</b> places a signed sell order on the book that fills when a buyer matches it. On a hosted node your browser verifies the OBX chain through that node — for full trustlessness, run your own node.</div>
+      </div>
+
+      <!-- PRICE CHART (in-wallet). The chart lib is lazy-loaded only when the DEX
+           tab opens (keeps the key-handling wallet/send pages light). Data comes
+           from the node via the proxy (/candles, fallback /explorer/pricehistory). -->
+      <div class="card glass">
+        <h2>OBX / XNO price <span class="pill" id="dexPrice">—</span></h2>
+        <div id="dexchart" style="height:230px;width:100%;position:relative"></div>
+        <div id="dexChartMsg" class="muted" style="font-size:13px;margin-top:6px">loading price history…</div>
+      </div>
+
+      <details class="card glass" style="padding:0;border:1px solid rgba(148,163,184,.2)">
+        <summary style="cursor:pointer;padding:14px 16px;font-weight:600;color:var(--muted)">Advanced — order book, post an offer, live swap steps</summary>
+        <div style="padding:0 4px 4px">
       <!-- TOTAL LIQUIDITY -->
       <div class="card glass" id="liqCard" style="background:linear-gradient(180deg,rgba(34,211,238,.07),rgba(34,211,238,.02));border:1px solid rgba(34,211,238,.25)">
         <h2>Total liquidity <span class="pill" id="liqTotPill">loading…</span></h2>
@@ -218,6 +265,8 @@
         <div class="row" style="margin-top:12px"><button onclick="postOffer()">Sign &amp; post offer</button></div>
         <div id="offerMsg"></div>
       </div>
+        </div>
+      </details>
     </section>
 
     <!-- XNO PROCEEDS -->
@@ -437,8 +486,8 @@ async function unlockExisting(){
 //   shasum -a 256 wallet.wasm | cut -d' ' -f1
 // A <script> tag can't carry SRI for a fetch()+instantiate load, so we verify the bytes
 // here BEFORE instantiating and abort on any mismatch (a swapped binary cannot run).
-const WASM_SHA384_B64 = "HWF9g/owcHzZvknuJAm4EFkE8YcVCUx3vuTlnhEjVPx4MPjV7UzX8lCfcRDcAWtu";
-const WASM_SHA256_HEX = "400019796cd45b898d5905e978344099dc1e7364928bf2556d1c0fcd4a18d3a2";
+const WASM_SHA384_B64 = "P4SHbkzq9Io4aNdr2GDP1ru7InSU014RQVr5W1DlMWNkbV/OO2hNLXHXsKkTIkkk";
+const WASM_SHA256_HEX = "197dd8b8f89905530e7affc7682c123b4743250a05ebc29c64c0c9e58a1f2afc";
 function b64FromBytes(buf){
   const b=new Uint8Array(buf); let s=""; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s);
 }
@@ -527,7 +576,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); t.classList.add("on");
   for(const s of ["wallet","vaults","swap","xno"]) el("t-"+s).classList.toggle("hide", s!==t.dataset.tab);
   if(t.dataset.tab==="vaults") loadVaults();
-  if(t.dataset.tab==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); } else { stopSwapsPoll(); }
+  if(t.dataset.tab==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); obInitCard(); dexChartStart(); } else { stopSwapsPoll(); dexChartStop(); }
   if(t.dataset.tab==="xno"){ xnoInitOnboard(); loadXNO(); }
 });
 
@@ -618,8 +667,19 @@ function refreshInfo(){
   // loses precision above ~9000 OBX. Fall back to the wasm-preformatted string if needed.
   el("balance").textContent=(i.balance!=null?atomicToObx(i.balance):i.balance_obx)+" OBX";
   el("syncStatus").textContent="scanned to block "+i.last_scanned;
+  if(typeof vaultRefreshBalance==="function") vaultRefreshBalance(); // keep the stake card's "Available" live
 }
-function copyAddr(){ navigator.clipboard?.writeText(el("address").textContent); }
+// Lightweight toast + copy-with-feedback (audit #22: clipboard copies were silent).
+function toast(msg){
+  let t=document.getElementById("__toast");
+  if(!t){ t=document.createElement("div"); t.id="__toast";
+    t.style.cssText="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1e293b;color:#e2e8f0;border:1px solid rgba(148,163,184,.3);padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none";
+    document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity="1";
+  clearTimeout(t._h); t._h=setTimeout(()=>{t.style.opacity="0";},1600);
+}
+function obxCopy(text,label){ try{ navigator.clipboard.writeText(text); toast((label||"Copied")+" ✓"); }catch(e){ toast("copy failed — select & copy manually"); } }
+function copyAddr(){ obxCopy(el("address").textContent, "Address copied"); }
 function forgetWallet(){ if(confirm("Forget this wallet from this browser? Make sure you have your recovery phrase (a forgotten passphrase is recovered by re-restoring from the 24 words).")){ _seed=null; localStorage.removeItem(ENC_KEY); localStorage.removeItem(LEGACY_KEY); localStorage.removeItem("obx_state"); localStorage.removeItem("obx_backup_confirmed"); location.reload(); } }
 
 // ---- reorg detection + recovery (audit #19) ----
@@ -749,7 +809,36 @@ async function send(){
 }
 
 // ---- vaults ----
+const STAKE_FEE_OBX="0.01";
+// the wallet's live spendable OBX (atomic) — read from the WASM wallet, same source
+// as the Wallet tab's balance. Shown in the stake card + used by "Max".
+function vaultSpendableAtomic(){
+  if(typeof obxInfo!=="function") return 0n;
+  const i=obxInfo(); if(i.error||i.balance==null) return 0n;
+  try{ return BigInt(i.balance); }catch(_){ return 0n; }
+}
+function vaultRefreshBalance(){
+  const el2=el("vaultAvailAmt"); if(!el2) return;
+  el2.textContent = atomicToObx(vaultSpendableAtomic().toString())+" OBX";
+}
+function vaultMax(){
+  const bal=vaultSpendableAtomic();
+  const fee=BigInt(obxToAtomic(STAKE_FEE_OBX).atomic);
+  const max = bal>fee ? bal-fee : 0n;
+  el("vAmt").value = max>0n ? atomicToObx(max.toString()) : "";
+  vaultAmtHint();
+  if(max<=0n) msg("vDepMsg","muted","No balance available to stake yet — mine or receive OBX first.");
+}
+// live hint: shows what will be staked + flags over-balance before the user clicks.
+function vaultAmtHint(){
+  const h=el("vDepHint"); if(!h) return;
+  const r=obxToAtomic(el("vAmt").value); if(r.error){ h.textContent=""; return; }
+  const amt=BigInt(r.atomic), fee=BigInt(obxToAtomic(STAKE_FEE_OBX).atomic), bal=vaultSpendableAtomic();
+  if(amt+fee>bal){ h.style.color="#f87171"; h.textContent=`Exceeds your balance — need ${atomicToObx((amt+fee).toString())} OBX (incl. fee), have ${atomicToObx(bal.toString())} OBX.`; }
+  else { h.style.color=""; h.textContent=`Will stake ${atomicToObx(amt.toString())} OBX (+ ${STAKE_FEE_OBX} OBX fee).`; }
+}
 async function loadVaults(){
+  vaultRefreshBalance();
   try{ const v=await get("vaults"); el("tvl").textContent=v.tvl_obx+" OBX"; el("yieldPool").textContent=(v.yield_pool_obx||"—")+" OBX"; }catch(e){}
 }
 async function vaultDeposit(){
@@ -757,7 +846,9 @@ async function vaultDeposit(){
   try{
     const amtR=obxToAtomic(el("vAmt").value); if(amtR.error) return msg("vDepMsg","err","amount: "+amtR.error);
     const amt=amtR.atomic; const term=el("vTerm").value;
-    const fee=obxToAtomic("0.01").atomic;
+    const fee=obxToAtomic(STAKE_FEE_OBX).atomic;
+    // guard: don't submit a deposit that exceeds the spendable balance (incl. fee).
+    if(BigInt(amt)+BigInt(fee)>vaultSpendableAtomic()) return msg("vDepMsg","err","amount + fee exceeds your available balance — use Max or enter less.");
     const {height}=await get("height");
     const r=obxBuildVaultDeposit(amt,term,fee,String(height));
     if(r.error) return msg("vDepMsg","err",r.error);
@@ -796,6 +887,271 @@ const DEC={OBX:12,XNO:12,BTC:8};
 // (default 0.001 OBX). Shown in the post-offer hint and the take confirm dialog so a taker
 // sees the fee they implicitly pay.
 const SWAP_FEE_OBX="0.001";
+let SWAP_FEE_ATOMIC=1000000000; // 0.001 OBX default — overridden from the node's /params at boot
+// Pull consensus/economic constants from the node (/params) instead of trusting
+// the hardcoded fallbacks (UI-decoupling audit: DEC/fee should not drift). Mutates
+// the existing DEC object + SWAP_FEE_ATOMIC in place; safe no-op if /params is absent.
+let _nodeParams=null;
+async function loadNodeParams(){
+  if(_nodeParams) return _nodeParams;
+  try{
+    const p=await get("params"); _nodeParams=p||{};
+    if(p){
+      if(Number(p.swap_fee_atomic)>0) SWAP_FEE_ATOMIC=Number(p.swap_fee_atomic);
+      if(p.decimals){ for(const k in p.decimals){ if(Number.isInteger(p.decimals[k])) DEC[k]=p.decimals[k]; } }
+    }
+  }catch(e){}
+  return _nodeParams;
+}
+
+// ===================== ONE-BUTTON NON-CUSTODIAL SWAP =========================
+// The browser runs the taker entirely client-side (WASM swapTakerRun): it mints
+// the swap shares, signs its OWN XNO lock (xnoSignBlock + nanocrypto) and OBX
+// claim, and the node only relays. Pay XNO → receive OBX, fully automated.
+
+const DEFAULT_NANO_REP="nano_3arg3asgtigae3xckabaaewkx3bzsh7nwz7jkmjos79ihyaxwphhm6qgjps4";
+
+// fmtUnits renders an atomic/raw BigInt as a human decimal with `dec` places.
+function fmtUnits(atoms,dec){
+  let a=BigInt(atoms); const base=10n**BigInt(dec);
+  const whole=a/base; let f=(a%base).toString().padStart(dec,"0").replace(/0+$/,"");
+  return f? whole.toString()+"."+f : whole.toString();
+}
+async function ensureOffers(){ if(!_swapParsed||!_swapParsed.length){ try{ await loadOffers(); }catch(e){} } }
+// the best OBX→XNO offer for a taker paying XNO (maker gives OBX, gets XNO);
+// best = most OBX per XNO = max(give/get), compared with exact cross-multiply.
+function bestObxOffer(){
+  let best=null;
+  for(const o of (_swapParsed||[])){
+    if(o.give_asset!=="OBX"||o.get_asset!=="XNO") continue;
+    const g=BigInt(o.give_amount), t=BigInt(o.get_amount);
+    if(g<=0n||t<=0n) continue;
+    if(!best || g*BigInt(best.get_amount) > BigInt(best.give_amount)*t) best=o;
+  }
+  return best;
+}
+// ---- Buy / Sell side (two buttons; clearer than "swap") --------------------
+let _obSide="buy"; // "buy" = pay XNO → get OBX (instant swap); "sell" = place an OBX→XNO sell order
+function obSetSide(side){
+  _obSide = side==="sell"?"sell":"buy";
+  const onBuy=_obSide==="buy", buy=el("obBuyTab"), sell=el("obSellTab");
+  if(buy){ buy.style.background=onBuy?"rgba(74,222,128,.18)":"transparent"; buy.style.borderColor=onBuy?"rgba(74,222,128,.55)":"rgba(148,163,184,.3)"; buy.style.color=onBuy?"#86efac":"var(--muted)"; }
+  if(sell){ sell.style.background=!onBuy?"rgba(248,113,113,.18)":"transparent"; sell.style.borderColor=!onBuy?"rgba(248,113,113,.55)":"rgba(148,163,184,.3)"; sell.style.color=!onBuy?"#fca5a5":"var(--muted)"; }
+  if(el("obSidePill")) el("obSidePill").textContent=onBuy?"Buy OBX":"Sell OBX";
+  if(el("obSwapBtn")) el("obSwapBtn").textContent=onBuy?"Buy OBX now":"Place sell order";
+  if(el("obPayLbl")) el("obPayLbl").innerHTML=(onBuy?"You pay (XNO)":"You sell (OBX)")+' <a href="#" onclick="obMax();return false" style="color:var(--accent);font-size:11px;font-weight:400;text-decoration:none" title="use your full balance">Max</a>';
+  if(el("obGetLbl")) el("obGetLbl").textContent=onBuy?"You receive (OBX, est.)":"You receive (XNO, est.)";
+  if(el("obPay")) el("obPay").placeholder=onBuy?"0.0001":"1.0";
+  if(el("obGet")) el("obGet").value="—"; if(el("obStatus")) el("obStatus").innerHTML="";
+  obRefreshBalances(); obQuote();
+}
+// obMax fills the amount input with the FULL relevant balance: in Buy mode that's
+// your XNO swap-account balance (you pay XNO); in Sell mode it's your OBX wallet
+// balance (you sell OBX). One Max per input, adapting to the chosen side.
+async function obMax(){
+  if(_obSide==="sell"){
+    if(typeof obxInfo==="function"){ const i=obxInfo(); if(!i.error&&i.balance!=null){ el("obPay").value=atomicToObx(i.balance); obQuote(); } }
+    return;
+  }
+  if(typeof xnoAccount==="function"){
+    const a=xnoAccount(); if(a.error) return;
+    try{ const info=await get("nanoaccount","&account="+encodeURIComponent(a.account)); el("obPay").value=fmtUnits(info.balance||"0",30); obQuote(); }catch(e){}
+  }
+}
+// live balances for BOTH coins: OBX from the wallet, XNO from the swap account.
+async function obRefreshBalances(){
+  if(el("obBalObx")&&typeof obxInfo==="function"){ const i=obxInfo(); if(!i.error&&i.balance!=null) el("obBalObx").textContent=atomicToObx(i.balance)+" OBX"; }
+  if(el("obBalXno")&&typeof xnoAccount==="function"){ const a=xnoAccount(); if(!a.error){ try{ const info=await get("nanoaccount","&account="+encodeURIComponent(a.account)); el("obBalXno").textContent=fmtUnits(info.balance||"0",30)+" XNO"; }catch(e){ el("obBalXno").textContent="(node Nano offline)"; } } }
+}
+// current market rate (XNO per OBX) from the best OBX→XNO offer, else null.
+function obMarketRate(){ const o=bestObxOffer(); if(!o) return null; const G=Number(o.give_amount),T=Number(o.get_amount); return G>0?T/G:null; }
+// obQuoteSell: from the entered OBX amount, show the XNO received at market.
+function obQuoteSell(){
+  const ql=el("obQuoteLine"), getEl=el("obGet"); if(!ql) return null;
+  const obx=humanToAtomic(el("obPay").value,"OBX");
+  if(obx.error){ ql.textContent=(obx.error==="enter an amount")?"":obx.error; getEl.value="—"; return null; }
+  const rate=obMarketRate(), r=rate!=null?rate:0.001;
+  const xnoHuman=(Number(BigInt(obx.atomic))/1e12)*r;
+  getEl.value=trimNum(xnoHuman);
+  ql.textContent = rate!=null? `Sell rate ~${trimNum(r)} XNO/OBX · you receive ~${trimNum(xnoHuman)} XNO when a buyer matches.` : "No market price yet — you'd set the price as the first seller.";
+  return {obxOU:BigInt(obx.atomic), xnoHuman, rate:r};
+}
+// obQuote dispatches to the buy or sell quote; obAction routes the main button.
+function obQuote(){ return _obSide==="sell"? obQuoteSell() : obQuoteBuy(); }
+function obAction(){ return _obSide==="sell"? obSell() : obSwap(); }
+// obSell: place a signed OBX→XNO sell order on the book at the market rate. (Instant
+// browser-side selling — the browser funding the OBX leg as a maker — is a follow-up;
+// today Sell rests a real signed order that fills when a buyer takes it.)
+async function obSell(){
+  const st=el("obStatus");
+  if(typeof obxBuildOffer!=="function"){ st.innerHTML='<span style="color:#f87171">Wallet still loading.</span>'; return; }
+  const q=obQuoteSell(); if(!q){ st.innerHTML='<span style="color:#f87171">Enter the amount of OBX to sell.</span>'; return; }
+  let bal=0n; if(typeof obxInfo==="function"){ const i=obxInfo(); if(!i.error&&i.balance!=null){ try{ bal=BigInt(i.balance);}catch(_){}} }
+  if(q.obxOU>bal){ st.innerHTML=`<span style="color:#f87171">You only have ${atomicToObx(bal.toString())} OBX — sell less.</span>`; return; }
+  const getR=humanToAtomic(String(q.xnoHuman),"XNO"); if(getR.error){ st.innerHTML='<span style="color:#f87171">amount too small to price</span>'; return; }
+  const expiry=Math.floor(Date.now()/1000)+3600;
+  try{
+    st.innerHTML='<span class="pill">signing sell order…</span>';
+    const r=obxBuildOffer("OBX","XNO",q.obxOU.toString(),getR.atomic,String(expiry));
+    if(r.error) throw new Error(r.error);
+    const s=await post("offer",{offer:r.offerhex});
+    st.innerHTML=`<span style="color:#4ade80;font-weight:600">✓ Sell order placed</span> — ${atomicToObx(q.obxOU.toString())} OBX for ~${trimNum(q.xnoHuman)} XNO (id ${(s.offer_id||"").slice(0,12)}…). It fills when a buyer matches it — keep this page open.`;
+    loadOffers();
+  }catch(e){ st.innerHTML='<span style="color:#f87171">Sell failed: '+escapeHtml(String(e&&e.message||e))+'</span>'; }
+}
+// obQuoteBuy: from the entered XNO, pick the best offer and compute matched amounts at
+// its EXACT rate (so the maker's same-rate-within-capacity check accepts). Returns
+// {obx_atomic, xno_raw, xnoOUexact, obxAtomic, offer} or null.
+async function obQuoteBuy(){
+  const ql=el("obQuoteLine"), getEl=el("obGet");
+  if(!ql) return null;
+  await ensureOffers();
+  const o=bestObxOffer();
+  if(!o){ ql.textContent="No OBX liquidity available right now."; getEl.value="—"; return null; }
+  const pay=humanToAtomic(el("obPay").value,"XNO"); // XNO offer-units (1e12 scale)
+  if(pay.error){ ql.textContent=(pay.error==="enter an amount")?"":pay.error; getEl.value="—"; return null; }
+  const payOU=BigInt(pay.atomic);
+  const G=BigInt(o.give_amount), T=BigInt(o.get_amount); // OBX atomic, XNO offer-units
+  let xnoOU = payOU>T?T:payOU;            // cap to offer capacity
+  let obxAtomic=(xnoOU*G)/T;              // floor OBX at the offer rate
+  if(obxAtomic<=0n){ ql.textContent="Amount too small for available liquidity."; getEl.value="—"; return null; }
+  let xnoOUexact=(obxAtomic*T + (G-1n))/G; if(xnoOUexact>T) xnoOUexact=T; // ceil so taker pays ≥ rate
+  const xnoRaw=xnoOUexact*(10n**18n);     // XNO offer-units (1e12) → raw (1e30)
+  getEl.value=fmtUnits(obxAtomic,12);
+  const rate=Number(T)/Number(G);
+  ql.textContent=`Best rate 1 OBX ≈ ${trimNum(rate)} XNO · you pay ${fmtUnits(xnoOUexact,12)} XNO · fee ${SWAP_FEE_OBX} OBX`;
+  return {obx_atomic:obxAtomic.toString(), xno_raw:xnoRaw.toString(), xnoOUexact, obxAtomic, offer:o};
+}
+// nanoLockFlow replicates the local-key lock (receive pending → send exactly
+// `need` raw to the joint account) using WASM signing + the node's secret-free
+// publish relay. Returns the send block hash (the lockID). jointPubHex is the
+// destination PUBLIC KEY hex (a Nano send's `link`).
+async function nanoLockFlow(amountRawDec,jointPubHex){
+  const me=xnoAccount(); if(me.error) throw new Error(me.error);
+  const need=BigInt(amountRawDec);
+  const info=await get("nanoaccount","&account="+encodeURIComponent(me.account));
+  let prev=info.opened? info.frontier : "0".repeat(64);
+  let rep=(info.representative&&info.representative.indexOf("nano_")===0)? info.representative : DEFAULT_NANO_REP;
+  let bal=BigInt(info.balance||"0");
+  for(let guard=0; bal<need && guard<25; guard++){
+    const rcv=await get("nanoreceivable","&account="+encodeURIComponent(me.account));
+    if(!rcv.found) break;
+    bal+=BigInt(rcv.amount);
+    const s=xnoSignBlock(prev,rep,bal.toString(),rcv.hash); if(s.error) throw new Error(s.error);
+    const pub=await post("nanopublish",{account_pub:s.account_pub,previous:prev,representative:rep,balance:bal.toString(),link:rcv.hash,signature:s.signature,subtype:"receive"});
+    prev=pub.hash;
+  }
+  if(bal<need) throw new Error("insufficient XNO balance to lock");
+  const newBal=(bal-need).toString();
+  const s=xnoSignBlock(prev,rep,newBal,jointPubHex); if(s.error) throw new Error(s.error);
+  const pub=await post("nanopublish",{account_pub:s.account_pub,previous:prev,representative:rep,balance:newBal,link:jointPubHex,signature:s.signature,subtype:"send"});
+  return pub.hash;
+}
+// makeSwapBridge builds the JS bridge swapTakerRun() drives. Each method returns a
+// Promise; the WASM driver awaits them on its own goroutine.
+function makeSwapBridge(statusEl){
+  let swapId=null;
+  const phaseTxt={init:"connecting to maker…",xno_lock:"locking your XNO…",claimed:"claiming OBX…",done:"finalizing…"};
+  return {
+    open: async (sid,_params)=>{ swapId=sid; await post("swapopen",{swap_id:sid}); return true; },
+    send: async (kind,payloadHex)=>{ await post("swapsend",{swap_id:swapId,kind:kind,payload:payloadHex}); return true; },
+    recv: async ()=>{ for(let i=0;i<80;i++){ const r=await get("swaprecv","&swap_id="+swapId); if(!r.empty) return {kind:r.kind,payload:r.payload}; await new Promise(res=>setTimeout(res,300)); } throw new Error("maker timed out"); },
+    height: async ()=>{ const h=await get("height"); return (h&&h.height!=null)?h.height:h; },
+    findSwapOut: async (keyHex)=> get("swapout","&key="+keyHex),
+    submitTx: async (txHex)=>{ await post("submittx",{tx:txHex}); return true; },
+    nanoLock: async (amountRawDec,accountPubHex)=> nanoLockFlow(amountRawDec,accountPubHex),
+    nanoConfirmed: async (lockId)=>{ try{ const b=await get("nanoblock","&hash="+lockId); return !!b.confirmed; }catch(e){ return false; } },
+    phase: (name)=>{ if(statusEl) statusEl.innerHTML='<span class="pill">'+(phaseTxt[name]||name)+'</span>'; }
+  };
+}
+// obSwap: the one button. Quote → funding check → run the full non-custodial swap.
+async function obSwap(){
+  const st=el("obStatus"), btn=el("obSwapBtn");
+  if(typeof swapTakerRun!=="function"||typeof xnoAccount!=="function"){ st.innerHTML='<span style="color:#f87171">Wallet still loading — try again in a moment.</span>'; return; }
+  const acct=xnoAccount(); if(acct.error){ st.innerHTML='<span style="color:#f87171">Restore or create a wallet first.</span>'; return; }
+  const q=await obQuote();
+  if(!q){ st.innerHTML='<span style="color:#f87171">Enter an amount with available liquidity.</span>'; return; }
+  let bal=0n, recv=0n;
+  try{ const info=await get("nanoaccount","&account="+encodeURIComponent(acct.account)); bal=BigInt(info.balance||"0"); }
+  catch(e){ st.innerHTML='<span style="color:#f87171">This node has no live Nano RPC — swaps are disabled here.</span>'; return; }
+  // freshly-deposited XNO arrives as a RECEIVABLE (pending) until the lock flow
+  // receives it, so count balance + pending toward the funding gate.
+  try{ const r=await get("nanoreceivable","&account="+encodeURIComponent(acct.account)); if(r.found) recv=BigInt(r.amount||"0"); }catch(e){}
+  const need=BigInt(q.xno_raw);
+  if(bal+recv<need){
+    el("obFund").innerHTML=`Deposit at least <b>${fmtUnits(q.xnoOUexact,12)} XNO</b> to your swap account, then press Swap again:<br><span class="mono" style="font-size:12px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
+    st.innerHTML='<span style="color:#fbbf24">Awaiting XNO deposit…</span>';
+    return;
+  }
+  btn.disabled=true;
+  const bridge=makeSwapBridge(st);
+  try{
+    st.innerHTML='<span class="pill">starting…</span>';
+    const r=await swapTakerRun(JSON.stringify({obx_atomic:q.obx_atomic,xno_raw:q.xno_raw,fee:SWAP_FEE_ATOMIC}),bridge);
+    if(r&&r.error) throw new Error(r.error);
+    st.innerHTML='<span style="color:#4ade80;font-weight:600">✓ Swap complete — OBX received in your wallet.</span>';
+  }catch(e){
+    st.innerHTML='<span style="color:#f87171">Swap failed: '+escapeHtml(String(e&&e.message||e))+'</span>';
+  }finally{ btn.disabled=false; }
+}
+// obInitCard: on swap-tab open, show the user's swap (XNO funding) account + balance.
+async function obInitCard(){
+  if(!el("obCard")||typeof xnoAccount!=="function") return;
+  loadNodeParams(); // pull swap fee + decimals from the node (vs hardcoded)
+  const acct=xnoAccount(); if(acct.error) return;
+  obRefreshBalances();
+  obSetSide(_obSide||"buy"); // default to Buy on first open, keep the chosen side on refresh
+  try{
+    const info=await get("nanoaccount","&account="+encodeURIComponent(acct.account));
+    el("obFund").innerHTML=`Deposit XNO to swap into OBX → <span class="mono" style="font-size:12px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
+  }catch(e){
+    el("obFund").innerHTML=`Your swap account: <span class="mono" style="font-size:12px">${acct.account}</span> <span class="muted">(node Nano RPC offline)</span>`;
+  }
+}
+// ---- in-wallet price chart (lightweight-charts, lazy-loaded on DEX-tab open) ----
+let _lwc=null,_lwcLoading=null,_dexChart=null,_dexSeries=null,_dexTimer=null;
+function loadLWC(){
+  if(window.LightweightCharts){ _lwc=window.LightweightCharts; return Promise.resolve(_lwc); }
+  if(_lwcLoading) return _lwcLoading;
+  _lwcLoading=new Promise((res,rej)=>{
+    const s=document.createElement("script"); s.src="/lightweight-charts.standalone.production.js";
+    s.onload=()=>{ _lwc=window.LightweightCharts; res(_lwc); };
+    s.onerror=()=>rej(new Error("chart lib failed"));
+    document.head.appendChild(s);
+  });
+  return _lwcLoading;
+}
+function dexChartInit(){
+  if(_dexChart||!_lwc||!el("dexchart")) return;
+  _dexChart=_lwc.createChart(el("dexchart"),{
+    height:230, autoSize:true,
+    layout:{background:{type:"solid",color:"transparent"},textColor:"#9aa3c4",fontFamily:"JetBrains Mono, monospace"},
+    grid:{vertLines:{color:"rgba(148,163,184,.07)"},horzLines:{color:"rgba(148,163,184,.07)"}},
+    rightPriceScale:{borderVisible:false}, timeScale:{borderVisible:false,timeVisible:true,secondsVisible:false},
+    crosshair:{mode:0}
+  });
+  _dexSeries=_dexChart.addAreaSeries({lineColor:"#7c5cff",topColor:"rgba(124,92,255,.30)",bottomColor:"rgba(124,92,255,0)",lineWidth:2,priceLineVisible:false});
+}
+async function dexChartLoad(){
+  if(!el("dexchart")) return;
+  try{ await loadLWC(); }catch(e){ if(el("dexChartMsg")) el("dexChartMsg").textContent="price chart unavailable on this node"; return; }
+  dexChartInit(); if(!_dexSeries) return;
+  let pts=[];
+  try{ const c=await get("candles","&pair=OBX/XNO&interval=3600&limit=300"); const ks=(c&&c.candles)||[]; pts=ks.map(k=>({time:Number(k.open_time||k.time||k.t),value:Number(k.close)})); }catch(e){}
+  if(!pts.length){ try{ const p=await get("pricehistory"); const arr=(p&&(p.points||p))||[]; pts=arr.map(x=>{ const r=String(x.rate||""); const i=r.indexOf("/"); const v=i>0?Number(r.slice(0,i))/Number(r.slice(i+1)):Number(r); return {time:Number(x.t),value:v}; }); }catch(e){} }
+  pts=pts.filter(p=>isFinite(p.time)&&p.time>0&&isFinite(p.value)&&p.value>0).sort((a,b)=>a.time-b.time);
+  const seen=new Set(); pts=pts.filter(p=>{ if(seen.has(p.time))return false; seen.add(p.time); return true; });
+  if(pts.length){
+    _dexSeries.setData(pts); _dexChart.timeScale().fitContent();
+    if(el("dexChartMsg")) el("dexChartMsg").style.display="none";
+    if(el("dexPrice")) el("dexPrice").textContent="1 OBX ≈ "+trimNum(pts[pts.length-1].value)+" XNO";
+  } else if(el("dexChartMsg")){ el("dexChartMsg").style.display="block"; el("dexChartMsg").textContent="building price history… (no trades or offers yet)"; }
+}
+function dexChartStart(){ dexChartLoad(); if(!_dexTimer) _dexTimer=setInterval(dexChartLoad,15000); }
+function dexChartStop(){ if(_dexTimer){ clearInterval(_dexTimer); _dexTimer=null; } }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+// ============================================================================
+
 // SIDE relative to OBX: maker giving OBX is SELLing OBX; maker getting OBX is BUYing OBX.
 function sideOf(o){
   if(o.give_asset==="OBX") return "SELL";
@@ -1231,7 +1587,7 @@ async function loadXNO(){
   el("xnoMockBanner").classList.toggle("hide", a.backend!=="mock");
   el("xnoStatus").textContent="backend: "+(a.backend||"?");
 }
-function xnoCopyAddr(){ navigator.clipboard?.writeText(el("xnoAddress").textContent); }
+function xnoCopyAddr(){ obxCopy(el("xnoAddress").textContent, "Address copied"); }
 function xnoInitOnboard(){
   // hide onboarding once the operator has confirmed they saved the recovery key.
   if(localStorage.getItem(XNO_BACKED_UP_KEY)==="1") el("xnoOnboard").classList.add("hide");

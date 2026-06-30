@@ -24,6 +24,7 @@ import (
 	"obscura/pkg/swapbook"
 	"obscura/pkg/swapd"
 	"obscura/pkg/swapnet"
+	"obscura/pkg/swaprelay"
 	"obscura/pkg/swapsession"
 	"obscura/pkg/tx"
 	"obscura/pkg/wallet"
@@ -32,12 +33,13 @@ import (
 // This file wires the trustless XNO<->OBX atomic-swap engine (pkg/swapnet
 // Coordinator over pkg/swapsession) into the running node: it adapts the node's
 // chain + miner wallet into the MakerOBX / TakerOBX capabilities the swap state
-// machines drive, picks a Nano backend (MockNano by default so the live
-// chain COMPLETES every leg and the UI shows each step; a real client only
-// when --nano-rpc is set), gates maker auto-funding to the node's OWN published
-// offers, and routes inbound p2p swap envelopes to the coordinator.
+// machines drive, picks a Nano backend (LIVE-ONLY policy: a real client when
+// --nano-rpc is set, otherwise the engine REFUSES to start — MockNano is permitted
+// only behind the explicit OBX_ALLOW_MOCK_NANO=1 opt-in for the value-less TEST
+// chain), gates maker auto-funding to the node's OWN published offers, and routes
+// inbound p2p swap envelopes to the coordinator.
 //
-// HONEST SCOPE (see MEMORY): the OBX leg mines its OWN blocks through
+// HONEST SCOPE (test chain, see MEMORY): the OBX leg mines its OWN blocks through
 // a single mine-lock (mirroring the swapnet tests), funding from the node miner
 // wallet seed. That is the simplest topology that makes a swap complete in-process;
 // it coexists with the main mineLoop because chain.AddBlock is internally locked
@@ -252,19 +254,37 @@ func (t nodeTakerCaps) Nano() swapsession.XNOLocker       { return t.nano }
 // mock treats destinations opaquely), so it is only ever used with MockNano.
 const mockSweepDest = "obx-node-xno-sweep-dest"
 
-// nanoForSwaps returns the Nano backend the swap engine uses. A real *swapd.NanoRPC is
-// used whenever one was selected via --nano-rpc. With no real client, the fallback is
-// MockNano (the chain completes every swap leg and the UI shows each step WITHOUT moving
-// real XNO), which is for TESTNET/DEVNET demos only. On MAINNET the caller refuses to
-// wire swap execution against this mock (it would settle real OBX against a fake XNO
-// leg), so the mock never backs swaps on a live chain. The real client must satisfy
+// errSwapMockRefused is the sentinel returned when no live Nano RPC is configured
+// AND the explicit MockNano opt-in is not set: the LIVE-ONLY policy (see repo
+// CLAUDE.md) FORBIDS powering a "real" swap engine with a mock, so we refuse to
+// wire the coordinator at all (leaving /swaps/* disabled) rather than silently
+// completing swaps against a fake ledger.
+var errSwapMockRefused = swapMockRefusedErr("swap engine DISABLED: live Nano RPC required " +
+	"(set --nano-rpc to a live endpoint; MockNano is refused by the live-only policy). " +
+	"Set OBX_ALLOW_MOCK_NANO=1 to override on the value-less local test chain")
+
+type swapMockRefusedErr string
+
+func (e swapMockRefusedErr) Error() string { return string(e) }
+
+// nanoForSwaps returns the Nano backend the swap engine uses, ENFORCING the
+// live-only policy. A real *swapd.NanoRPC (selected via --nano-rpc) is always
+// accepted. With no real client the DEFAULT is to REFUSE (errSwapMockRefused) so
+// the node does NOT silently run "real" swaps on a mock; MockNano is permitted ONLY
+// behind the explicit OBX_ALLOW_MOCK_NANO=1 escape hatch (local/dev/test on the
+// value-less chain), and that path logs a loud WARNING. The real client must satisfy
 // swapsession's XNOSweeper/XNOLocker (Lock/Confirmed/Sweep/LockInfo), which
 // swapd.NanoClient does.
-func nanoForSwaps(real swapd.NanoClient) (swapd.NanoClient, string) {
+func nanoForSwaps(real swapd.NanoClient) (swapd.NanoClient, string, error) {
 	if real != nil {
-		return real, "real --nano-rpc client"
+		return real, "real --nano-rpc client", nil
 	}
-	return swapd.NewMockNano(), "MockNano (testnet/devnet demo only)"
+	if os.Getenv("OBX_ALLOW_MOCK_NANO") == "1" {
+		log.Printf("WARNING: OBX_ALLOW_MOCK_NANO=1 — swap engine running on MockNano (NO real XNO moves). " +
+			"For the value-less local test chain ONLY; this violates the live-only policy on any real deployment.")
+		return swapd.NewMockNano(), "MockNano (OBX_ALLOW_MOCK_NANO=1 test override)", nil
+	}
+	return nil, "", errSwapMockRefused
 }
 
 // wireSwapCoordinator builds and starts the swap Coordinator bound to this node,
@@ -291,8 +311,15 @@ func nanoForSwaps(real swapd.NanoClient) (swapd.NanoClient, string) {
 // double-fund the same liquidity); the reservation is committed on a swept swap and
 // released on abort via OnMakerDone. SwapState is persisted under
 // <datadir>/swapstate so a crash mid-swap can resume rather than freeze XNO.
-func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realNano swapd.NanoClient, xnoSweepDestOverride, datadir string) (*swapnet.Coordinator, uint64, error) {
-	nano, nanoDesc := nanoForSwaps(realNano)
+func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realNano swapd.NanoClient, xnoSweepDestOverride, datadir string) (*swapnet.Coordinator, *swaprelay.Relay, uint64, error) {
+	// LIVE-ONLY POLICY (repo CLAUDE.md): refuse to start the swap engine on MockNano
+	// by default. Without a real --nano-rpc client (and without the OBX_ALLOW_MOCK_NANO=1
+	// escape hatch) this returns errSwapMockRefused, so we skip wiring entirely — main.go
+	// logs "swap engine NOT wired" and /swaps/* stays empty while the rest of the node runs.
+	nano, nanoDesc, err := nanoForSwaps(realNano)
+	if err != nil {
+		return nil, nil, 0, err
+	}
 	host := newSwapOBXHost(c, minerSeed, node)
 	makerPub := makerPubFromSeed(minerSeed)
 
@@ -300,7 +327,7 @@ func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realN
 	usingRealNano := realNano != nil
 	sweepDest, sweepDesc, err := resolveSweepDest(minerSeed, xnoSweepDestOverride, usingRealNano)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 
 	// In-node SwapState persistence: a real directory under the datadir so a crash
@@ -316,7 +343,7 @@ func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realN
 				"(OBX_SWAP_ALLOW_EPHEMERAL=1 — a crash mid-swap may freeze funds)", stateDir, err)
 			stateDir = ""
 		} else {
-			return nil, 0, fmt.Errorf("swap: cannot create state dir %s: %w (a crash mid-swap could "+
+			return nil, nil, 0, fmt.Errorf("swap: cannot create state dir %s: %w (a crash mid-swap could "+
 				"freeze funds; fix the path/permissions or set OBX_SWAP_ALLOW_EPHEMERAL=1 to run without "+
 				"crash-resumable swaps)", stateDir, err)
 		}
@@ -327,9 +354,15 @@ func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realN
 	rec := newSwapReconciler(node)
 
 	tr := swapnet.NewP2PTransport(node)
+	// Wrap the p2p transport with the browser relay: a browser taker's swap
+	// envelopes are injected into THIS coordinator's maker side as if from a
+	// "browser:<swapID>" peer, and the maker's replies to that synthetic peer are
+	// queued for the browser to long-poll. Real p2p peers fall through unchanged.
+	// This is what lets a non-custodial browser taker swap with a node maker.
+	relay := swaprelay.New(tr)
 	fee := swapOBXFee
 	coord, err := swapnet.New(swapnet.Config{
-		Transport: tr,
+		Transport: relay,
 		Maker:     nodeMakerCaps{h: host, nano: nano, sweepDest: sweepDest},
 		Taker:     nodeTakerCaps{h: host, nano: nano},
 		Timeout:   swapStallTimeout,
@@ -341,9 +374,10 @@ func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realN
 		OnMakerDone: rec.makerDone,
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
-	tr.BindInbound(coord) // node.OnSwapSession -> coord.Deliver
+	relay.SetCoordinator(coord) // browser envelopes -> coord.Deliver(browser:<swapID>)
+	tr.BindInbound(coord)       // real p2p node.OnSwapSession -> coord.Deliver
 	// crash-resume: re-drive any persisted, non-terminal MAKER swaps so a node that
 	// crashed mid-swap still sweeps (taker claimed) or refunds (taker stalled) its funded
 	// OBX instead of stranding it. No-op when persistence is disabled (StateDir == "").
@@ -354,7 +388,7 @@ func wireSwapCoordinator(c *chain.Chain, node *p2p.Node, minerSeed []byte, realN
 	}
 	log.Printf("swap engine ENABLED: Nano=%s, fee=%s %s, XNO sweep dest=%s, state=%s, maker auto-fund RESERVES own published OBX/XNO offers",
 		nanoDesc, config.FormatAmount(fee), config.Ticker, sweepDesc, stateDesc)
-	return coord, fee, nil
+	return coord, relay, fee, nil
 }
 
 // swapReconciler binds the maker-side swap lifecycle to this node's order book:
@@ -439,7 +473,7 @@ func (r *swapReconciler) makerDone(s swapnet.MakerSettlement, success bool) {
 //     miner seed (swapd.MinerXNOAccount, domain "Obscura/xno-proceeds/v1"). The
 //     operator can spend the swept XNO with the seed-derived secret (wallet follow-up).
 //   - override empty + MockNano (test/default): use the opaque mock ledger key so the
-//     live chain keeps completing every leg unchanged.
+//     value-less test chain keeps completing every leg unchanged.
 //
 // It returns the destination and a human-readable description for the startup log.
 func resolveSweepDest(minerSeed []byte, override string, usingRealNano bool) (dest, desc string, err error) {

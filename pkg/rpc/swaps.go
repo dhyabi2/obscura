@@ -83,7 +83,7 @@ func (s *Server) handleOfferCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.offers == nil {
-		writeJSON(w, map[string]string{"error": "order book unavailable"})
+		writeErr(w, http.StatusServiceUnavailable, "order book unavailable")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
@@ -92,23 +92,23 @@ func (s *Server) handleOfferCancel(w http.ResponseWriter, r *http.Request) {
 		Sig     string `json:"sig"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, map[string]string{"error": "bad json"})
+		writeErr(w, http.StatusBadRequest, "bad json")
 		return
 	}
 	idBytes, err := hex.DecodeString(req.OfferID)
 	if err != nil || len(idBytes) != 32 {
-		writeJSON(w, map[string]string{"error": "bad offer_id"})
+		writeErr(w, http.StatusBadRequest, "bad offer_id")
 		return
 	}
 	sig, err := hex.DecodeString(req.Sig)
 	if err != nil {
-		writeJSON(w, map[string]string{"error": "bad sig"})
+		writeErr(w, http.StatusBadRequest, "bad sig")
 		return
 	}
 	var id [32]byte
 	copy(id[:], idBytes)
 	if err := s.offers.Cancel(id, sig); err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, map[string]bool{"ok": true})
@@ -289,11 +289,11 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.swaps == nil {
-		writeJSON(w, map[string]string{"error": "swap engine unavailable"})
+		writeErr(w, http.StatusServiceUnavailable, "swap engine unavailable")
 		return
 	}
 	if s.offers == nil {
-		writeJSON(w, map[string]string{"error": "order book unavailable"})
+		writeErr(w, http.StatusServiceUnavailable, "order book unavailable")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
@@ -314,7 +314,7 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 		TakerPub string `json:"taker_pub"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, map[string]string{"error": "bad json"})
+		writeErr(w, http.StatusBadRequest, "bad json")
 		return
 	}
 
@@ -341,7 +341,7 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 	switch req.Type {
 	case "", "market", "ioc", "fok":
 	default:
-		writeJSON(w, map[string]string{"error": "unknown order type (want market|ioc|fok)"})
+		writeErr(w, http.StatusBadRequest, "unknown order type (want market|ioc|fok)")
 		return
 	}
 	if req.Type == "fok" {
@@ -352,7 +352,7 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 	if req.OfferID != "" {
 		idBytes, err := hex.DecodeString(req.OfferID)
 		if err != nil || len(idBytes) != 32 {
-			writeJSON(w, map[string]string{"error": "bad offer_id"})
+			writeErr(w, http.StatusBadRequest, "bad offer_id")
 			return
 		}
 		var want [32]byte
@@ -364,11 +364,11 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if pinned == nil {
-			writeJSON(w, map[string]string{"error": "offer not found (expired or unknown)"})
+			writeErr(w, http.StatusNotFound, "offer not found (expired or unknown)")
 			return
 		}
 		if pinned.GiveAsset != "OBX" || pinned.GetAsset != "XNO" {
-			writeJSON(w, map[string]string{"error": "only OBX/XNO offers are takeable by this node"})
+			writeErr(w, http.StatusBadRequest, "only OBX/XNO offers are takeable by this node")
 			return
 		}
 		// reserve exactly this offer's remaining XNO capacity unless a smaller Size
@@ -383,7 +383,7 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if req.Size == 0 {
-			writeJSON(w, map[string]string{"error": "offer_id or size required"})
+			writeErr(w, http.StatusBadRequest, "offer_id or size required")
 			return
 		}
 		size = req.Size
@@ -394,7 +394,7 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 	// take cannot oversell the same liquidity.
 	res, getOut, giveIn, err := s.offers.Reserve(takerGive, takerGet, size, opts)
 	if err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -420,14 +420,14 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 	if peer == "" {
 		if s.peers == nil {
 			s.offers.ReleaseReservation([]swapbook.Reservation{best})
-			writeJSON(w, map[string]string{"error": "no peer specified and no peer provider wired"})
+			writeErr(w, http.StatusServiceUnavailable, "no peer specified and no peer provider wired")
 			return
 		}
 		if p, ok := s.peers.PeerForMaker(best.Maker); ok && p != "" {
 			peer = p
 		} else {
 			s.offers.ReleaseReservation([]swapbook.Reservation{best})
-			writeJSON(w, map[string]string{"error": "maker peer unknown for this offer (no provenance recorded); specify \"peer\" explicitly"})
+			writeErr(w, http.StatusBadRequest, "maker peer unknown for this offer (no provenance recorded); specify \"peer\" explicitly")
 			return
 		}
 	}
@@ -442,14 +442,14 @@ func (s *Server) handleSwapsTake(w http.ResponseWriter, r *http.Request) {
 	xnoRaw := swapd.XNOOfferUnitsToRaw(new(big.Int).SetUint64(best.Pay))
 	if obxAtomic == 0 || xnoRaw.Sign() == 0 {
 		s.offers.ReleaseReservation([]swapbook.Reservation{best})
-		writeJSON(w, map[string]string{"error": "reserved amounts too small to settle"})
+		writeErr(w, http.StatusBadRequest, "reserved amounts too small to settle")
 		return
 	}
 
 	sess, err := s.swaps.Take(peer, obxAtomic, xnoRaw, s.swapFee)
 	if err != nil {
 		s.offers.ReleaseReservation([]swapbook.Reservation{best})
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	id := sess.ID()
@@ -524,6 +524,48 @@ type TradesResponse struct {
 	Pair      string      `json:"pair"`
 	LastPrice string      `json:"last_price"` // "" if no trades
 	Trades    []TradeJSON `json:"trades"`
+	// Pagination metadata (audit IMPORTANT #8): Limit is the effective cap applied;
+	// Truncated is true when the tape filled that cap (more trades may exist beyond
+	// it — raise ?limit to fetch them). The tape itself is bounded server-side.
+	Limit     int  `json:"limit"`
+	Truncated bool `json:"truncated"`
+}
+
+// validMarketTicker checks one asset ticker of a market-data pair: 1..16 chars,
+// alphanumeric plus '-' and '.' (matching swapbook's asset rules).
+func validMarketTicker(t string) bool {
+	if len(t) == 0 || len(t) > 16 {
+		return false
+	}
+	for i := 0; i < len(t); i++ {
+		c := t[i]
+		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+// validMarketPair checks a "GIVE/GET" pair (e.g. "OBX/XNO"): exactly one slash,
+// two valid tickers. Audit #14/#92: reject malformed/oversized pairs with a clear
+// 400 instead of forwarding them and silently returning empty data.
+func validMarketPair(p string) bool {
+	if len(p) == 0 || len(p) > 40 {
+		return false
+	}
+	slash := -1
+	for i := 0; i < len(p); i++ {
+		if p[i] == '/' {
+			if slash >= 0 {
+				return false // more than one slash
+			}
+			slash = i
+		}
+	}
+	if slash <= 0 || slash == len(p)-1 {
+		return false
+	}
+	return validMarketTicker(p[:slash]) && validMarketTicker(p[slash+1:])
 }
 
 // handleTrades returns the recent executed-trade tape for ?pair (taker-orientation
@@ -536,6 +578,11 @@ func (s *Server) handleTrades(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pair := r.URL.Query().Get("pair")
+	// empty = all pairs (allowed); a NON-empty pair must be well-formed.
+	if pair != "" && !validMarketPair(pair) {
+		http.Error(w, "bad pair (want GIVE/GET, e.g. OBX/XNO)", http.StatusBadRequest)
+		return
+	}
 	limit := 100
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 5000 {
@@ -543,7 +590,7 @@ func (s *Server) handleTrades(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	tape := s.offers.Trades(pair, limit)
-	out := TradesResponse{Pair: pair, Trades: make([]TradeJSON, 0, len(tape))}
+	out := TradesResponse{Pair: pair, Trades: make([]TradeJSON, 0, len(tape)), Limit: limit, Truncated: len(tape) >= limit}
 	if pair != "" {
 		if lp, ok := s.offers.LastPrice(pair); ok {
 			out.LastPrice = lp
@@ -567,8 +614,8 @@ func (s *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pair := r.URL.Query().Get("pair")
-	if pair == "" {
-		http.Error(w, "pair required", http.StatusBadRequest)
+	if !validMarketPair(pair) {
+		http.Error(w, "bad or missing pair (want GIVE/GET, e.g. OBX/XNO)", http.StatusBadRequest)
 		return
 	}
 	interval := int64(3600)
@@ -598,8 +645,8 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pair := r.URL.Query().Get("pair")
-	if pair == "" {
-		http.Error(w, "pair required", http.StatusBadRequest)
+	if !validMarketPair(pair) {
+		http.Error(w, "bad or missing pair (want GIVE/GET, e.g. OBX/XNO)", http.StatusBadRequest)
 		return
 	}
 	st := s.offers.Stats24h(pair)
@@ -679,7 +726,7 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 	copy(id[:], idBytes)
 	fs, ok := s.offers.OfferFill(id)
 	if !ok {
-		writeJSON(w, map[string]string{"error": "order not found (expired or unknown)"})
+		writeErr(w, http.StatusNotFound, "order not found (expired or unknown)")
 		return
 	}
 	writeJSON(w, map[string]any{

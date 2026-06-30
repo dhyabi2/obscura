@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"obscura/pkg/config"
 	"obscura/pkg/mempool"
 	"obscura/pkg/miner"
+	"obscura/pkg/nanorpc"
 	"obscura/pkg/p2p"
 	"obscura/pkg/pow"
 	"obscura/pkg/rpc"
@@ -160,6 +162,7 @@ func main() {
 	// choice. Without a selection the order book still works and only XNO execution is off.
 	var realNano swapd.NanoClient // nil unless a real --nano-rpc client is selected
 	var realNanoRPC *swapd.NanoRPC // concrete client for the XNO proceeds wallet (balance/receivable/send)
+	var nanoPub *nanorpc.Client    // secret-free Nano client for the NON-CUSTODIAL browser swap relay
 	// Explicit opt-out of the default public Nano RPC (privacy / air-gapped operators).
 	if s := strings.ToLower(strings.TrimSpace(*nanoRPC)); s == "off" || s == "none" || s == "disabled" || s == "false" {
 		*nanoRPC = ""
@@ -172,6 +175,30 @@ func main() {
 		cfg.FundSecretHex = *nanoFundSecret // TAKER local-key funding secret (validated below; never logged)
 		if *nanoWorkURL != "" {
 			cfg.WorkURL = *nanoWorkURL
+		}
+		// Secret-free client (no wallet/source/fund-secret) for the browser relay's
+		// read + publish endpoints: the browser signs its own Nano blocks; this only
+		// reads state, generates work, and processes already-signed blocks. It FAILS
+		// OVER across the SAME curated endpoint list the node software uses
+		// (swapd.PublicNanoRPCs): the operator's chosen endpoint first, then
+		// rainstorm → somenano → nanoto (work routed to rainstorm), deduped. So if the
+		// primary flakes, the browser swap keeps working on the node's own fallbacks.
+		nanoChain := []nanorpc.Config{{URL: cfg.URL, AuthHeader: cfg.AuthHeader, WorkURL: cfg.WorkURL}}
+		for _, p := range swapd.PublicNanoRPCs {
+			if p.URL == cfg.URL {
+				continue // primary already first
+			}
+			work := p.WorkURL
+			if work == "" {
+				work = p.URL
+			}
+			nanoChain = append(nanoChain, nanorpc.Config{URL: p.URL, WorkURL: work})
+		}
+		if np, nerr := nanorpc.NewMulti(nanoChain); nerr == nil {
+			nanoPub = np
+			log.Printf("XNO browser-relay Nano client: %d endpoint(s) with failover (primary %s)", len(nanoChain), cfg.URL)
+		} else {
+			log.Printf("WARNING: secret-free Nano relay client not built (%v); browser /swaps/nano/* disabled", nerr)
 		}
 		// NewNanoRPC validates --nano-fund-secret (canonical 32-byte ed25519 scalar) and
 		// drops the raw hex from its config, so the secret never survives past this call
@@ -224,21 +251,23 @@ func main() {
 	} else {
 		srv.SetXNO(swapSeed, nil)
 	}
-	// MAINNET SAFETY: never back swap EXECUTION with the MockNano stand-in. On a live
-	// chain the OBX leg moves REAL value, so a mocked XNO leg would let a maker hand over
-	// real OBX and receive nothing. With no real --nano-rpc configured, swap execution is
-	// disabled (the P2P order book still gossips offers); operators enable real swaps by
-	// pointing --nano-rpc at a Nano node. On testnet/devnet the mock remains the default.
-	if config.IsMainnet() && realNano == nil {
-		log.Printf("SWAP EXECUTION DISABLED: mainnet refuses to settle real OBX against a mock XNO leg. Set --nano-rpc (e.g. a Nano node URL or preset) to enable real OBX<->XNO swaps. The order book still gossips offers.")
+	// MAINNET SAFETY (LIVE-ONLY policy): never back swap EXECUTION with the MockNano
+	// stand-in. On a live chain the OBX leg moves REAL value, so a mocked XNO leg would
+	// let a maker hand over real OBX and receive nothing. realNano is nil unless --nano-rpc
+	// was set above; when nil, nanoForSwaps inside the wiring REFUSES to start the swap
+	// engine (returning errSwapMockRefused) UNLESS OBX_ALLOW_MOCK_NANO=1 opts into MockNano
+	// for the value-less local test chain — in which case the wiring logs a loud WARNING.
+	// On refusal the order book still gossips offers; operators enable real swaps by
+	// pointing --nano-rpc at a Nano node.
+	swapCoord, swapRelay, swapFee, err := wireSwapCoordinator(c, node, swapSeed, realNano, *xnoSweepDest, *datadir)
+	if err != nil {
+		log.Printf("WARNING: swap engine NOT wired (%v); /swaps/* will be empty", err)
 	} else {
-		swapCoord, swapFee, err := wireSwapCoordinator(c, node, swapSeed, realNano, *xnoSweepDest, *datadir)
-		if err != nil {
-			log.Printf("WARNING: swap engine NOT wired (%v); /swaps/* will be empty", err)
-		} else {
-			srv.SetSwapCoordinator(swapCoord, swapFee)
-			defer swapCoord.Stop()
-		}
+		srv.SetSwapCoordinator(swapCoord, swapFee)
+		// NON-CUSTODIAL browser swap: expose the relay + secret-free Nano client so a
+		// browser taker can run the full swap (it signs every leg; node only relays).
+		srv.SetSwapRelay(swapRelay, nanoPub)
+		defer swapCoord.Stop()
 	}
 
 	// Wrap the RPC handler with a tiny /auto-liquidity observability endpoint. Cheap,
@@ -494,6 +523,18 @@ func autoLiquidityLoop(c *chain.Chain, node *p2p.Node, seed []byte) {
 	if tick <= 0 {
 		tick = time.Minute
 	}
+	// Auto-offers churn so the price can MOVE: a short TTL (3 ticks) means old
+	// rungs expire and are re-posted at the walked mid, instead of one frozen
+	// price sitting in the book forever.
+	offerTTL := 3 * tick
+	if offerTTL < 90*time.Second {
+		offerTTL = 90 * time.Second
+	}
+	// mid is the maker's evolving mid price (XNO per OBX). It RANDOM-WALKS each
+	// tick (clamped to a band around the seed) so the market is dynamic and the
+	// price chart actually moves. rng is seeded off the maker key + wall clock.
+	mid := config.AutoLiquiditySeedRateXNO
+	rng := mrand.New(mrand.NewSource(time.Now().UnixNano() ^ int64(makerPub[0]) ^ (int64(makerPub[1]) << 8)))
 	t := time.NewTicker(tick)
 	defer t.Stop()
 	for {
@@ -521,6 +562,23 @@ func autoLiquidityLoop(c *chain.Chain, node *p2p.Node, seed []byte) {
 			continue // no-op: nothing to offer yet
 		}
 
+		// EVOLVE THE MID PRICE: a bounded random walk so the market is dynamic (the
+		// price chart moves) instead of sitting on one fixed number. Anchor to the
+		// book's current best when one exists (so we track the real market) but
+		// always nudge it, then clamp to a sane band around the seed rate.
+		if anchored := bookOrSeedRate(node); anchored > 0 {
+			mid = 0.5*mid + 0.5*anchored // ease toward the live book, then walk
+		}
+		mid *= 1 + (rng.Float64()*2-1)*config.AutoLiquidityPriceStepPct
+		lo, hi := config.AutoLiquiditySeedRateXNO*0.4, config.AutoLiquiditySeedRateXNO*2.5
+		if mid < lo {
+			mid = lo
+		}
+		if mid > hi {
+			mid = hi
+		}
+		liquidityState.rateBits.Store(math.Float64bits(mid))
+
 		// How much OBX is already tied up in our outstanding auto-offers, and how
 		// many we have. We track our own offers by maker pubkey.
 		mine := node.MakerOffers(makerPub)
@@ -529,8 +587,9 @@ func autoLiquidityLoop(c *chain.Chain, node *p2p.Node, seed []byte) {
 			offeredOBX += offerOBXAtomic(o.GiveAmount) // convert offer give-units back to atomic
 		}
 		liquidityState.live.Store(int64(len(mine)))
-		if len(mine) >= config.AutoLiquidityMaxOffers {
-			continue // cap reached — refresh again next tick (offers expire on their own)
+		want := config.AutoLiquidityMaxOffers - len(mine)
+		if want <= 0 {
+			continue // full depth — refresh next tick as short-TTL rungs expire
 		}
 
 		// Budget: at most AutoLiquidityMaxFraction of spendable may be outstanding.
@@ -540,42 +599,54 @@ func autoLiquidityLoop(c *chain.Chain, node *p2p.Node, seed []byte) {
 		}
 		room := budget - offeredOBX
 
-		// Chunk size in OBX atomic units; never exceed remaining room.
-		chunk := uint64(config.AutoLiquidityChunkOBX * float64(config.AtomicPerCoin))
-		if chunk == 0 {
-			chunk = config.AtomicPerCoin
+		baseChunk := uint64(config.AutoLiquidityChunkOBX * float64(config.AtomicPerCoin))
+		if baseChunk == 0 {
+			baseChunk = config.AtomicPerCoin
 		}
-		if chunk > room {
-			chunk = room
-		}
-		if chunk == 0 {
-			continue
-		}
+		minChunk := config.AtomicPerCoin / 100 // 0.01 OBX floor
 
-		// RATE: track the book's current best OBX→XNO rate if any offer exists,
-		// else fall back to the configured seed rate. Convention (matches the web
-		// wallet's display): rate = humanXNO / humanOBX, where human = atomic /
-		// 10^DEC[asset], DEC{OBX:8, XNO:30}.
-		rate := bookOrSeedRate(node)
-		liquidityState.rateBits.Store(math.Float64bits(rate))
-
-		// Convert the chunk (OBX atomic) and the rate into the offer's give/get
-		// amounts in the ecosystem's human-decimal units.
-		giveUnits, getUnits, ok := offerAmountsFor(chunk, rate)
-		if !ok {
-			continue // chunk too small to express a non-zero offer at this rate
+		// POST A COMPETITIVE LADDER around the mid. Rung 0 is the most AGGRESSIVE
+		// price (fewest XNO per OBX → best for a taker → matched FIRST); each
+		// further rung steps the price up by LadderStep, giving the book real
+		// depth at distinct, competing levels rather than one flat price. Chunk
+		// sizes are varied ±30% so the depth isn't uniform/static either.
+		posted, lowRate, highRate := 0, 0.0, 0.0
+		for i := 0; i < want && room >= minChunk; i++ {
+			level := mid * (1 + float64(i)*config.AutoLiquidityLadderStepPct)
+			if level <= 0 {
+				continue
+			}
+			chunk := baseChunk * uint64(70+rng.Intn(61)) / 100 // 0.7x–1.3x
+			if chunk < minChunk {
+				chunk = minChunk
+			}
+			if chunk > room {
+				chunk = room
+			}
+			giveUnits, getUnits, ok := offerAmountsFor(chunk, level)
+			if !ok {
+				continue
+			}
+			o := swapbook.BuildSignedOffer("OBX", "XNO", giveUnits, getUnits, offerTTL, makerSecret)
+			if err := node.PostOffer(o); err != nil {
+				log.Printf("auto-liquidity: offer rejected: %v", err)
+				continue
+			}
+			room -= chunk
+			posted++
+			liquidityState.posted.Add(1)
+			liquidityState.live.Add(1)
+			if lowRate == 0 || level < lowRate {
+				lowRate = level
+			}
+			if level > highRate {
+				highRate = level
+			}
 		}
-
-		o := swapbook.BuildSignedOffer("OBX", "XNO", giveUnits, getUnits, 30*time.Minute, makerSecret)
-		if err := node.PostOffer(o); err != nil {
-			log.Printf("auto-liquidity: offer rejected: %v", err)
-			continue
+		if posted > 0 {
+			log.Printf("auto-liquidity: posted %d competitive OBX→XNO rungs, mid %.6g XNO/OBX, ladder [%.6g..%.6g], depth %d/%d, total posted=%d",
+				posted, mid, lowRate, highRate, len(mine)+posted, config.AutoLiquidityMaxOffers, liquidityState.posted.Load())
 		}
-		liquidityState.posted.Add(1)
-		liquidityState.live.Add(1)
-		log.Printf("auto-liquidity: posted OBX→XNO offer %s %s for %g XNO (rate %.6g XNO/OBX) — book now has our offer; total posted=%d",
-			config.FormatAmount(chunk), config.Ticker, float64(getUnits)/math.Pow10(config.AutoLiquidityDecimals["XNO"]),
-			rate, liquidityState.posted.Load())
 	}
 }
 
