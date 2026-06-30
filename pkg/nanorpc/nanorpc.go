@@ -292,11 +292,16 @@ func (c *Client) Receivable(account string) (blockHash, amountRaw string, ok boo
 		Blocks map[string]string `json:"blocks"`
 	}
 	// "threshold" (not "source") so the node returns a {hash: amountRaw} map.
+	// threshold "1" raw = detect ANY non-zero amount (down to 1e-30 XNO, so dust
+	// like 0.000000001 XNO is surfaced). include_only_confirmed=false so a deposit
+	// is detected the instant the network sees it, not only after confirmation
+	// (small XNO sends confirm slower) — the funding box updates immediately.
 	if err := c.callRead(map[string]any{
-		"action":    "receivable",
-		"account":   account,
-		"count":     "10",
-		"threshold": "1",
+		"action":                 "receivable",
+		"account":                account,
+		"count":                  "10",
+		"threshold":              "1",
+		"include_only_confirmed": "false",
 	}, &res); err != nil {
 		return "", "", false
 	}
