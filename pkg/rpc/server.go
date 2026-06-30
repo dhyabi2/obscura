@@ -162,10 +162,16 @@ type Server struct {
 	// book's best OBX/XNO taker rate, powering the explorer's realtime price chart
 	// (/explorer/pricehistory). In-memory only — a node restart rebuilds it from
 	// empty (per-node, non-consensus, like the instantaneous price cards).
-	priceMu      sync.Mutex
-	priceHist    []pricePoint
-	priceStarted sync.Once
+	priceMu       sync.Mutex
+	priceHist     []pricePoint
+	priceStarted  sync.Once
+	priceHistPath string // optional: JSON file to persist priceHist across restarts
 }
+
+// SetPriceHistPath makes the price-history ring durable: it is loaded on the first
+// sample and saved after each one, so a node restart no longer empties the chart.
+// Call before Handler(). Empty path = in-memory only (the old behavior).
+func (s *Server) SetPriceHistPath(p string) { s.priceHistPath = p }
 
 // pricePoint is one sample of the best OBX/XNO taker rate at a unix time.
 // Rate is the raw atomic "get/give" string (the same convention bestPrices /

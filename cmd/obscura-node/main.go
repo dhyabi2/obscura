@@ -63,7 +63,7 @@ func main() {
 		// logic; the operator selects one. As a convenience, --nano-rpc accepts a built-in
 		// preset NAME from a working public-RPC pick-list OR a full custom URL. DEFAULT is
 		// "public" (rainstorm + a public read fallback chain); set off to disable XNO exec.
-		nanoRPC     = flag.String("nano-rpc", func() string {
+		nanoRPC = flag.String("nano-rpc", func() string {
 			if v := os.Getenv("OBX_NANO_RPC"); v != "" {
 				return v
 			}
@@ -155,12 +155,13 @@ func main() {
 	log.Printf("P2P listening on %s (seeds: %v)", *p2pAddr, seedList)
 
 	srv := rpc.NewServer(c, mp, node.BroadcastTx)
-	srv.SetOfferBook(node) // expose the swap order book over RPC
+	srv.SetOfferBook(node)                                          // expose the swap order book over RPC
+	srv.SetPriceHistPath(filepath.Join(*datadir, "pricehist.json")) // persist the chart history across restarts
 
 	// XNO↔OBX swap leg: only enabled when the operator selects a Nano RPC (preset name or
 	// URL). Nothing is hardcoded into the swap logic — a preset is an explicit operator
 	// choice. Without a selection the order book still works and only XNO execution is off.
-	var realNano swapd.NanoClient // nil unless a real --nano-rpc client is selected
+	var realNano swapd.NanoClient  // nil unless a real --nano-rpc client is selected
 	var realNanoRPC *swapd.NanoRPC // concrete client for the XNO proceeds wallet (balance/receivable/send)
 	var nanoPub *nanorpc.Client    // secret-free Nano client for the NON-CUSTODIAL browser swap relay
 	// Explicit opt-out of the default public Nano RPC (privacy / air-gapped operators).

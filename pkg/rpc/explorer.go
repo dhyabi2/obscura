@@ -2,7 +2,9 @@ package rpc
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -407,14 +409,60 @@ func (s *Server) recordPrice() {
 	s.priceMu.Unlock()
 }
 
-// runPriceSampler takes an immediate sample (so the chart isn't empty on first
-// poll) then samples every priceSampleInterval. Launched once from Handler().
+// loadPriceHist restores the persisted ring (if SetPriceHistPath was set and the
+// file exists), so a restart keeps the chart history instead of rebuilding from
+// zero. Bounded to priceHistCap. Best-effort — a missing/corrupt file is ignored.
+func (s *Server) loadPriceHist() {
+	if s.priceHistPath == "" {
+		return
+	}
+	b, err := os.ReadFile(s.priceHistPath)
+	if err != nil {
+		return
+	}
+	var pts []pricePoint
+	if json.Unmarshal(b, &pts) != nil {
+		return
+	}
+	if len(pts) > priceHistCap {
+		pts = pts[len(pts)-priceHistCap:]
+	}
+	s.priceMu.Lock()
+	if len(s.priceHist) == 0 { // don't clobber samples already taken
+		s.priceHist = pts
+	}
+	s.priceMu.Unlock()
+}
+
+// savePriceHist persists the ring atomically (temp + rename). Best-effort.
+func (s *Server) savePriceHist() {
+	if s.priceHistPath == "" {
+		return
+	}
+	s.priceMu.Lock()
+	b, err := json.Marshal(s.priceHist)
+	s.priceMu.Unlock()
+	if err != nil {
+		return
+	}
+	tmp := s.priceHistPath + ".tmp"
+	if os.WriteFile(tmp, b, 0o644) == nil {
+		_ = os.Rename(tmp, s.priceHistPath)
+	}
+}
+
+// runPriceSampler restores any persisted history, takes an immediate sample (so the
+// chart isn't empty on first poll) then samples every priceSampleInterval, saving
+// after each. Launched once from Handler().
 func (s *Server) runPriceSampler() {
+	s.loadPriceHist()
 	s.recordPrice()
+	s.savePriceHist()
 	t := time.NewTicker(priceSampleInterval)
 	defer t.Stop()
 	for range t.C {
 		s.recordPrice()
+		s.savePriceHist()
 	}
 }
 
