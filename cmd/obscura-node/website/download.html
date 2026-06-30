@@ -54,7 +54,7 @@
       <a href="/">Home</a>
       <a href="/wallet.html">Web wallet</a>
       <a href="/explorer">Explorer</a>
-      <a href="https://github.com/dhyabi2/obscura" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/obscura-node/obscura" target="_blank" rel="noopener">GitHub</a>
       <a class="nav-cta" href="/download">Download →</a>
     </div>
   </div>
@@ -152,12 +152,12 @@ shasum -a 256 Obscura-darwin-arm64.zip
 <span class="muted"># Windows (PowerShell)</span>
 Get-FileHash .\Obscura-windows-amd64.zip -Algorithm SHA256</pre>
     <p class="tiny muted">The printed hash must match the line for your file in <a href="https://github.com/dhyabi2/obscura/releases/download/v1.0.0/SHA256SUMS.txt" style="color:#9fb0ff">SHA256SUMS.txt</a>. If it doesn't, do not run the file.</p>
-    <p class="tiny muted">The same checksums are published on GitHub for independent verification: <a href="https://github.com/dhyabi2/obscura/blob/main/RELEASES.md" style="color:#9fb0ff">github.com/dhyabi2/obscura · RELEASES.md</a> (source: <a href="https://github.com/dhyabi2/obscura" style="color:#9fb0ff">github.com/dhyabi2/obscura</a>).</p>
+    <p class="tiny muted">The same checksums are published on GitHub for independent verification: <a href="https://github.com/obscura-node/obscura/blob/main/RELEASES.md" style="color:#9fb0ff">github.com/obscura-node/obscura · RELEASES.md</a> (source: <a href="https://github.com/obscura-node/obscura" style="color:#9fb0ff">github.com/obscura-node/obscura</a>).</p>
   </div>
 
   <div class="steps2">
     <h3>Prefer to build from source?</h3>
-    <pre>git clone https://github.com/dhyabi2/obscura &amp;&amp; cd obscura
+    <pre>git clone https://github.com/obscura-node/obscura &amp;&amp; cd obscura
 CGO_ENABLED=0 go build -o obscura-node ./cmd/obscura-node
 ./obscura-node --ui --mine        <span class="muted"># wallet + swap + mining desktop app</span></pre>
     <p class="tiny muted">Pure Go, CGO-free — cross-compiles to every OS. See the <a href="/docs.html#quickstart" style="color:#9fb0ff">quickstart</a>.</p>
