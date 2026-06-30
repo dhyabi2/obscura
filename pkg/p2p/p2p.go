@@ -550,7 +550,12 @@ func (n *Node) handle(conn net.Conn, outbound bool, dialedAddr string) {
 // means (message-size cap, bounded request windows, read deadlines).
 func rateExempt(typ byte) bool {
 	switch typ {
-	case msgBlock, msgTip, msgGetBlk, msgGetTip:
+	// audit: msgGetBlk (a peer asking US to SERVE a block) is a disk-read SERVE cost,
+	// not propagation — it is NOT exempt, so a peer can't spam unbounded block-serve
+	// requests. A legitimately-syncing peer still gets blocks (the bucket's burst +
+	// sustained rate comfortably cover sync). msgBlock (inbound propagation), msgTip,
+	// and the cheap msgGetTip stay exempt.
+	case msgBlock, msgTip, msgGetTip:
 		return true
 	case msgSnapshot:
 		// inbound snapshot chunks of an IN-FLIGHT, locally-requested transfer must not be

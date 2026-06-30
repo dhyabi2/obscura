@@ -59,6 +59,18 @@ func spendKeys(t *tx.Transaction) []string {
 	keys := make([]string, 0, len(t.Inputs)+len(t.AnonInputs)+len(t.SwapInputs))
 	for _, in := range t.Inputs {
 		keys = append(keys, string(in.OutputRef))
+		// audit #5: consensus records a transparent spend's canonical KeyImage in the
+		// SAME shared nullifier set as an anon spend's canonical Tag (a coin can't be
+		// spent both ways). The mempool conflict key MUST share that "tag:" namespace,
+		// else a transparent spend + an anon spend of ONE coin both admit, poisoning the
+		// miner's template (block rejected at the unified consensus key = free PoW grief).
+		if len(in.KeyImage) == 32 {
+			ki := in.KeyImage
+			if c2, ok := commit.CanonicalNullifier(in.KeyImage); ok {
+				ki = c2
+			}
+			keys = append(keys, "tag:"+string(ki))
+		}
 	}
 	for _, in := range t.AnonInputs {
 		// Canonicalize to the cofactor-cleared nullifier (8·T) so two torsion
@@ -117,6 +129,18 @@ func (m *Mempool) Add(t *tx.Transaction) error {
 	minFee := uint64(len(raw)) * config.MinFeePerByte
 	if t.Fee < minFee {
 		return errors.New("mempool: fee below minimum")
+	}
+
+	// audit DoS: reject an EXACT re-submission of an already-pooled tx with a cheap
+	// O(1) map lookup BEFORE the ~35ms proof verification, so a duplicate flood can't
+	// force repeated expensive verifies (the global RPC rate limiter still caps the
+	// overall rate; a re-proofed tx gets a new txid and still pays full verify cost,
+	// which costs the attacker the same work).
+	m.mu.Lock()
+	_, dup := m.txs[t.HashHex()]
+	m.mu.Unlock()
+	if dup {
+		return errors.New("mempool: already present")
 	}
 
 	// Full consensus validation runs OUTSIDE the mempool lock so concurrent
