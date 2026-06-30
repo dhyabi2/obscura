@@ -1035,7 +1035,10 @@ async function obMax(){
   }
   if(typeof xnoAccount==="function"){
     const a=xnoAccount(); if(a.error) return;
-    try{ const info=await get("nanoaccount","&account="+encodeURIComponent(a.account)); el("obPay").value=fmtUnits(info.balance||"0",30); obQuote(); }catch(e){}
+    // include the pending receivable (a just-sent / tiny deposit shows up here
+    // before it confirms into the balance) so Max isn't 0 right after funding.
+    const total=await fundTotalRaw(a.account);
+    if(total!=null){ el("obPay").value=fmtUnits(total.toString(),30); obQuote(); }
   }
 }
 // live balances for BOTH coins: OBX from the wallet, XNO from the swap account.

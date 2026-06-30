@@ -23,8 +23,8 @@ import (
 	"obscura/pkg/swap"
 	"obscura/pkg/swapbook"
 	"obscura/pkg/swapd"
-	"obscura/pkg/swapnet"
 	"obscura/pkg/swaprelay"
+	"obscura/pkg/swapnet"
 	"obscura/pkg/swapsession"
 	"obscura/pkg/tx"
 	"obscura/pkg/wallet"
@@ -416,8 +416,11 @@ func newSwapReconciler(node *p2p.Node) *swapReconciler {
 // reservable liquidity) funds NOTHING (deny-by-default F-A).
 func (r *swapReconciler) acceptAndReserve(makerPub []byte, init *swapsession.Init) bool {
 	if !acceptInitForOwnOffers(r.node, makerPub, init) {
+		log.Printf("swap maker: DENY Init %x — OBX=%d XNO=%v matches no live OBX/XNO offer at-or-below its rate (have %d offers)",
+			init.SwapID[:6], init.OBXAmount, init.XNOAmount, len(r.node.MakerOffers(makerPub)))
 		return false // not one of our live offers / mismatched amounts → deny
 	}
+	log.Printf("swap maker: ACCEPT Init %x — funding OBX=%d for XNO=%v", init.SwapID[:6], init.OBXAmount, init.XNOAmount)
 	// Reserve the matching XNO capacity (maker GIVES OBX, GETS XNO; from the book's
 	// taker-orientation API that is Reserve(give=XNO, get=OBX, sizeXNOofferUnits)).
 	// Convert the agreed RAW XNO back to offer-units (raw / 1e18) to size the reserve.
@@ -549,12 +552,21 @@ func acceptInitForOwnOffers(node *p2p.Node, makerPub []byte, init *swapsession.I
 		// in big.Int to avoid uint64 overflow and integer-division rounding:
 		//     init.OBX / init.XNO == obxAtomic / xnoRaw
 		//   ⇔ init.OBX · xnoRaw   == obxAtomic · init.XNO
-		if init.OBXAmount > obxAtomic || initXNO.Cmp(xnoRaw) > 0 {
-			continue // slice exceeds this offer's remaining capacity
+		// Capacity: the maker can deliver at most the offer's OBX leg. The taker may
+		// pay MORE XNO than the proportional share (that only benefits the maker), so
+		// the XNO leg is NOT capped here — only OBX is.
+		if init.OBXAmount > obxAtomic {
+			continue // slice exceeds this offer's OBX capacity
 		}
-		lhs := new(big.Int).Mul(new(big.Int).SetUint64(init.OBXAmount), xnoRaw)
-		rhs := new(big.Int).Mul(new(big.Int).SetUint64(obxAtomic), initXNO)
-		if lhs.Cmp(rhs) == 0 {
+		// Price: accept the offer's rate OR ANY rate BETTER for the maker (taker pays
+		// at least the offered XNO-per-OBX). Requiring EXACT equality was the bug — a
+		// depth/VWAP-derived quote rounds by an atom and would never match, so the Init
+		// was silently dropped and the taker hung at "connecting to maker". The maker is
+		// never worse off:  obxAtomic·init.XNO >= xnoRaw·init.OBX
+		//   ⇔  init.XNO/init.OBX >= xnoRaw/obxAtomic  (taker's price ≥ offer's price).
+		lhs := new(big.Int).Mul(new(big.Int).SetUint64(init.OBXAmount), xnoRaw) // init.OBX · offerXNO
+		rhs := new(big.Int).Mul(new(big.Int).SetUint64(obxAtomic), initXNO)     // offerOBX · init.XNO
+		if rhs.Cmp(lhs) >= 0 {
 			return true
 		}
 	}
