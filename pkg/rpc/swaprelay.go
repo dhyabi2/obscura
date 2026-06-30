@@ -100,6 +100,9 @@ func (s *Server) handleSwapRelaySend(w http.ResponseWriter, r *http.Request) {
 // message. Returns {"empty":true} on timeout (the browser re-polls).
 func (s *Server) handleSwapRelayRecv(w http.ResponseWriter, r *http.Request) {
 	cors(w)
+	// A long-poll MUST NOT be cached: a cached reply would redeliver an old swap
+	// envelope to the next (same-URL) recv. Belt to the client-side cache-buster.
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	if r.Method == http.MethodOptions {
 		return
 	}

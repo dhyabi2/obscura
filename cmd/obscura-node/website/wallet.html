@@ -1130,6 +1130,7 @@ async function nanoLockFlow(amountRawDec,jointPubHex){
   const pub=await post("nanopublish",{account_pub:s.account_pub,previous:prev,representative:rep,balance:newBal,link:jointPubHex,signature:s.signature,subtype:"send"});
   return pub.hash;
 }
+let _recvSeq=0; // monotonic cache-buster for the swaprecv long-poll
 // makeSwapBridge builds the JS bridge swapTakerRun() drives. Each method returns a
 // Promise; the WASM driver awaits them on its own goroutine.
 function makeSwapBridge(statusEl){
@@ -1138,7 +1139,10 @@ function makeSwapBridge(statusEl){
   return {
     open: async (sid,_params)=>{ swapId=sid; await post("swapopen",{swap_id:sid}); return true; },
     send: async (kind,payloadHex)=>{ await post("swapsend",{swap_id:swapId,kind:kind,payload:payloadHex}); return true; },
-    recv: async ()=>{ for(let i=0;i<80;i++){ const r=await get("swaprecv","&swap_id="+swapId); if(!r.empty) return {kind:r.kind,payload:r.payload}; await new Promise(res=>setTimeout(res,300)); } throw new Error("maker timed out"); },
+    // CACHE-BUSTER (&_=unique): swaprecv is a LONG-POLL — its URL must differ every
+    // call or the browser/CDN returns the cached previous reply, redelivering an old
+    // envelope (the taker then sees e.g. MakerCommit where it expects Funded).
+    recv: async ()=>{ for(let i=0;i<80;i++){ const r=await get("swaprecv","&swap_id="+swapId+"&_="+Date.now()+"_"+(_recvSeq++)); if(!r.empty) return {kind:r.kind,payload:r.payload}; await new Promise(res=>setTimeout(res,300)); } throw new Error("maker timed out"); },
     height: async ()=>{ const h=await get("height"); return (h&&h.height!=null)?h.height:h; },
     findSwapOut: async (keyHex)=> get("swapout","&key="+keyHex),
     submitTx: async (txHex)=>{ await post("submittx",{tx:txHex}); return true; },

@@ -414,7 +414,11 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		if method == http.MethodGet {
-			w.Header().Set("Cache-Control", "public, max-age=2")
+			if path == "swaprecv" {
+				w.Header().Set("Cache-Control", "no-store") // long-poll: never cache (redelivery bug)
+			} else {
+				w.Header().Set("Cache-Control", "public, max-age=2")
+			}
 		}
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
