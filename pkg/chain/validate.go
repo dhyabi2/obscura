@@ -818,6 +818,11 @@ func (c *Chain) prewarmProofCacheLocked(txs []*tx.Transaction, height uint64) {
 		go func(t *tx.Transaction) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// A panic anywhere in validateTxLocked's call graph runs in THIS child
+			// goroutine; a recover() in the parent can't catch it, so it would crash the
+			// whole node. This is a best-effort pre-warm (the authoritative sequential
+			// pass re-validates), so swallow the panic and just skip caching. (audit)
+			defer func() { _ = recover() }()
 			ss := make(map[string]bool)
 			sp := make(map[string]bool)
 			if _, err := c.validateTxLocked(t, height, ss, sp); err == nil {

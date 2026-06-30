@@ -183,6 +183,20 @@ func corsMiddleware(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// SENSITIVE OPERATOR ROUTES ARE NEVER CORS-ENABLED (audit CRITICAL): operator
+		// trust is loopback-OR-bearer, so a malicious page open in the operator's
+		// browser could otherwise CSRF a same-machine POST to /xno/withdraw (drain) or
+		// /xno/recovery (secret exfil) — a wildcard ACAO is exactly what lets the browser
+		// send + read that cross-origin request. Withholding the CORS headers makes the
+		// browser block the preflight; non-browser CLI callers (no CORS) are unaffected.
+		if corsDeniedPath(r.URL.Path) {
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -193,4 +207,14 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// corsDeniedPath reports whether a route must NOT receive CORS headers — the
+// state-changing/secret-revealing operator endpoints (see corsMiddleware).
+func corsDeniedPath(p string) bool {
+	switch p {
+	case "/xno/withdraw", "/xno/recovery":
+		return true
+	}
+	return false
 }

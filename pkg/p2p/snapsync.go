@@ -70,6 +70,13 @@ func (n *Node) maybeRequestSnapshot(p *peer, peerH, ourH uint64) {
 // chunks. Run in its own goroutine (the export can be large); msgGetSnapshot is rate-limited so a
 // peer cannot spam expensive exports.
 func (n *Node) serveSnapshot(p *peer) {
+	// This runs in a DETACHED goroutine (go n.serveSnapshot(p)); the per-connection
+	// recover() does NOT cover it, so a panic here would crash the whole node. Guard it.
+	defer func() {
+		if r := recover(); r != nil {
+			p2pLog("serveSnapshot panic recovered: %v", r)
+		}
+	}()
 	data, h, err := n.chain.ExportTransferSnapshot()
 	if err != nil || len(data) == 0 {
 		p2pLog("serve snapshot to %s -> none (%v)", p.conn.RemoteAddr(), err)

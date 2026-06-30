@@ -362,7 +362,8 @@ func runLive(args []string) {
 		}
 		fs.xnoDest = addr
 		log.Printf("generated destination XNO account: %s", addr)
-		log.Printf("  (dest secret key hex: %s — keep this to recover the swept funds)", hex.EncodeToString(dsk.Bytes()))
+		_ = appendSwapRecovery(fmt.Sprintf("dest_secret_hex=%s  recovers swept funds for %s\n", hex.EncodeToString(dsk.Bytes()), addr))
+		log.Printf("  dest recovery secret written to swap-recovery.keys (chmod 600) — NOT logged")
 	} else if _, err := swapd.DecodeNanoAddress(fs.xnoDest); err != nil {
 		log.Fatalf("--xno-dest is not a valid nano address: %v", err)
 	}
@@ -372,8 +373,9 @@ func runLive(args []string) {
 	jointAddr, _ := swapd.EncodeNanoAddress(sec.xnoPub)
 	// Log the joint half-secrets so the locked XNO is recoverable (sweep needs sA+sB)
 	// even if the executor crashes before sweeping — fund-safety for the live run.
-	log.Printf("joint account %s — recovery half-keys sA=%s sB=%s", jointAddr,
-		hex.EncodeToString(sec.sA.Bytes()), hex.EncodeToString(sec.sB.Bytes()))
+	_ = appendSwapRecovery(fmt.Sprintf("joint=%s sA=%s sB=%s\n", jointAddr,
+		hex.EncodeToString(sec.sA.Bytes()), hex.EncodeToString(sec.sB.Bytes())))
+	log.Printf("joint account %s — recovery half-keys written to swap-recovery.keys (chmod 600), NOT logged", jointAddr)
 
 	// Set up the OBX leg. Two modes:
 	//   - default (no --obx-seed): an isolated, in-process devnet (unchanged).
@@ -749,4 +751,16 @@ func flagSet(args []string) liveFlags {
 		}
 	}
 	return f
+}
+
+// appendSwapRecovery writes swap recovery secrets to a 0600 file instead of the log
+// stream — logging private keys persists them in any redirected log file (audit).
+func appendSwapRecovery(line string) error {
+	f, err := os.OpenFile("swap-recovery.keys", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(line)
+	return err
 }
