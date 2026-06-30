@@ -232,16 +232,14 @@ func (c *Chain) applyBlock(b *block.Block, persist bool) error {
 		}
 		for _, in := range t.VaultInputs {
 			key := hexstr(in.VaultKey)
-			v, ok := c.vaults[key]
-			if !ok {
+			if _, ok := c.vaults[key]; !ok {
 				continue
 			}
-			if y, ok := vaultYield(v.Amount, v.RateBps); ok {
-				if y <= c.incentivePool {
-					c.incentivePool -= y
-				} else {
-					c.incentivePool = 0 // defensive; validation prevents this
-				}
+			// Pay the STATED, validation-capped yield from the incentive pool.
+			if y := in.Yield; y <= c.incentivePool {
+				c.incentivePool -= y
+			} else {
+				c.incentivePool = 0 // defensive; validation prevents this
 			}
 			delete(c.vaults, key)
 		}

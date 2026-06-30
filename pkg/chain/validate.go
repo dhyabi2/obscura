@@ -165,12 +165,13 @@ func (c *Chain) validateBlockLocked(b *block.Block) error {
 			if !ok {
 				return fmt.Errorf("%w: vault claim references unknown vault", errValidation)
 			}
-			y, ok := vaultYield(v.Amount, v.RateBps)
-			if !ok {
+			// Affordability sums the STATED yields (each capped to entitlement in
+			// validateTxLocked). cap recomputed only to surface an overflow early.
+			if _, ok := vaultYieldAt(v, b.Header.Height); !ok {
 				return fmt.Errorf("%w: vault yield computation overflow", errValidation)
 			}
 			var ovf bool
-			if totalVaultYield, ovf = addU64(totalVaultYield, y); ovf {
+			if totalVaultYield, ovf = addU64(totalVaultYield, in.Yield); ovf {
 				return fmt.Errorf("%w: vault yield sum overflow", errValidation)
 			}
 		}
@@ -572,15 +573,23 @@ func (c *Chain) validateTxLocked(t *tx.Transaction, height uint64, seenSpent, se
 		if !skip && !commit.VerifyFull(v.OwnerKey, ctx[:], sig) {
 			return nil, fmt.Errorf("%w: invalid vault claim signature", errValidation)
 		}
-		y, ok := vaultYield(v.Amount, v.RateBps)
+		// The claimer STATES in.Yield; consensus caps it at the vault's entitled
+		// yield at THIS block height (full for a fixed term, pro-rata for a flexible
+		// Term==0 vault). Stating less is allowed (forgoing yield); stating more is a
+		// hard reject. Using the stated value keeps the wallet's value-conservation
+		// proof exact regardless of how many blocks after building the claim is mined.
+		cap, ok := vaultYieldAt(v, height)
 		if !ok {
 			return nil, fmt.Errorf("%w: vault yield computation overflow", errValidation)
+		}
+		if in.Yield > cap {
+			return nil, fmt.Errorf("%w: vault claim yield exceeds entitlement", errValidation)
 		}
 		var ovf2 bool
 		if publicIn, ovf2 = addU64(publicIn, v.Amount); ovf2 {
 			return nil, fmt.Errorf("%w: vault principal overflow", errValidation)
 		}
-		if publicIn, ovf2 = addU64(publicIn, y); ovf2 {
+		if publicIn, ovf2 = addU64(publicIn, in.Yield); ovf2 {
 			return nil, fmt.Errorf("%w: vault yield overflow", errValidation)
 		}
 		seenSpent[vk] = true

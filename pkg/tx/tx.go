@@ -179,7 +179,12 @@ type VaultOut struct {
 // re-entering the confidential pool (the proceeds land in fresh stealth outputs).
 type VaultIn struct {
 	VaultKey []byte // which vault
-	Sig      []byte // 64B Schnorr signature over the tx CoreHash under OwnerKey
+	Yield    uint64 // yield claimed from the incentive pool; consensus CAPS it at the
+	// vault's entitled yield-at-claim-height (full for fixed terms, pro-rata for a
+	// flexible Term==0 vault). Bound in the CoreHash so the signature + value-
+	// conservation proof commit to it — the claimer states the exact payout, which
+	// stays valid however many blocks later the claim is actually mined.
+	Sig []byte // 64B Schnorr signature over the tx CoreHash under OwnerKey
 }
 
 // PQOutput is a POST-QUANTUM confidential output (experimental Version-2 path).
@@ -382,6 +387,7 @@ func (t *Transaction) Serialize() []byte {
 	wU64(&buf, uint64(len(t.VaultInputs)))
 	for _, in := range t.VaultInputs {
 		wB(&buf, in.VaultKey)
+		wU64(&buf, in.Yield)
 		wB(&buf, in.Sig)
 	}
 	wU64(&buf, uint64(len(t.VaultOutputs)))
@@ -692,6 +698,9 @@ func Deserialize(data []byte) (*Transaction, error) {
 		if in.VaultKey, err = rB(r); err != nil {
 			return nil, err
 		}
+		if in.Yield, err = rU64(r); err != nil {
+			return nil, err
+		}
 		if in.Sig, err = rB(r); err != nil {
 			return nil, err
 		}
@@ -871,7 +880,7 @@ func (t *Transaction) CoreHash() [32]byte {
 	// Vault outputs are content → included as-is (shallow copy in c).
 	c.VaultInputs = make([]VaultIn, len(t.VaultInputs))
 	for i, in := range t.VaultInputs {
-		c.VaultInputs[i] = VaultIn{VaultKey: in.VaultKey}
+		c.VaultInputs[i] = VaultIn{VaultKey: in.VaultKey, Yield: in.Yield}
 	}
 	// ZK inputs: bind Serial/Amount/Anchor; exclude the STARK Proof (which is itself
 	// bound to this CoreHash via the proof's transcript domain — see chain validation).

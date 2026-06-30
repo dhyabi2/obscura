@@ -64,31 +64,32 @@
   </header>
   <div class="sub">Your keys and every signature run <b>entirely in your browser</b> (WebAssembly) — nothing is ever sent to a server except already-signed transactions. Confidential amounts, stealth addresses.</div>
 
-  <!-- TRUST-MODEL DISCLOSURE (audit S4). Honest by default everywhere; JS softens
-       the wording on a local node (your own machine = no shared-operator caveat). -->
-  <div id="trustBanner" class="warn">
-    <b>Privacy tip.</b> On the hosted site, every request is routed through <b>one operator's node</b>, so that operator (and the hosting provider) can see your IP, your balance scans, and your swap activity, which weakens on-chain privacy. Your recovery phrase is stored <b>encrypted in this browser</b> (passphrase-protected) — but clearing site data still erases it, so keep your 24-word backup. For full privacy and self-custody, <a href="/download" style="color:inherit;text-decoration:underline">download and run your own node</a>.
-  </div>
-
-  <!-- RUN-YOUR-OWN-NODE GUIDANCE (audit #14/#17/#18). The proxy already withholds your IP
-       from the operator node, but a shared node still sees your scan/swap timing. The real
-       fix is self-hosting. Hidden on localhost (already private) by the trust-banner JS. -->
-  <div id="ownNodeNote" class="warn" style="font-size:13px;line-height:1.55">
-    <b>Want full privacy?</b> Run your own node and point this wallet at it — then no shared operator ever sees your IP, balance scans, or swap intent.
-    <ol style="margin:8px 0 4px 18px;padding:0">
-      <li><a href="/download" style="text-decoration:underline">Download the node</a> and start it: <span class="mono">./obscura-node</span> (serves this same wallet UI locally).</li>
-      <li>Open the wallet from <span class="mono">http://localhost:&lt;port&gt;</span> instead of this hosted site — your seed and all requests stay on your machine.</li>
-    </ol>
-  </div>
-
   <div id="boot" class="card glass"><span class="muted">Loading wallet engine…</span></div>
 
   <div id="app" class="hide">
-    <div class="tabs">
+    <!-- ENTRY GATE: the first thing a ready wallet shows — two clear choices.
+         Picking one reveals the tabbed app focused on that path. -->
+    <div id="entryGate" class="hide">
+      <h2 style="text-align:center;margin:6px 0 4px">How do you want to get OBX?</h2>
+      <div class="row" style="gap:14px;flex-wrap:wrap;margin-top:10px">
+        <div class="card glass" onclick="choosePath('mine')" style="flex:1;min-width:220px;cursor:pointer;text-align:center;border:1px solid rgba(167,139,250,.35);transition:.15s" onmouseover="this.style.borderColor='rgba(167,139,250,.8)'" onmouseout="this.style.borderColor='rgba(167,139,250,.35)'">
+          <div style="font-size:40px;line-height:1.1">⛏️</div>
+          <h2 style="margin:6px 0">Mine for OBX</h2>
+          <div class="muted" style="font-size:13px">Run a node and earn OBX by mining. Best for full privacy and self-custody.</div>
+        </div>
+        <div class="card glass" onclick="choosePath('buy')" style="flex:1;min-width:220px;cursor:pointer;text-align:center;border:1px solid rgba(74,222,128,.4);transition:.15s" onmouseover="this.style.borderColor='rgba(74,222,128,.85)'" onmouseout="this.style.borderColor='rgba(74,222,128,.4)'">
+          <div style="font-size:40px;line-height:1.1">💱</div>
+          <h2 style="margin:6px 0">Buy OBX</h2>
+          <div class="muted" style="font-size:13px">Swap XNO (Nano) for OBX instantly in your browser. Fast — fund with XNO and go.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs hide" id="tabBar">
       <div class="tab on" data-tab="wallet">Wallet</div>
-      <div class="tab" data-tab="vaults">Vaults</div>
-      <div class="tab" data-tab="swap">DEX</div>
-      <div class="tab" data-tab="xno">XNO proceeds</div>
+      <div class="tab" data-tab="swap">Buy OBX</div>
+      <div class="tab" data-tab="vaults">Stake</div>
+      <div class="tab" data-tab="mine">Mine</div>
     </div>
 
     <!-- WALLET -->
@@ -121,8 +122,25 @@
           </div>
         </div>
         <div class="card glass">
-          <h2>Receive</h2>
+          <h2>Receive OBX</h2>
           <div class="muted mono" id="address" onclick="copyAddr()" style="cursor:pointer" title="click to copy"></div>
+        </div>
+        <!-- XNO (Nano) balance lives HERE on the wallet page. This is the account you
+             FUND with XNO and SPEND to buy OBX on the Buy tab. Scan the QR from a Nano
+             wallet to top it up. Derived from your recovery phrase — non-custodial. -->
+        <div class="card glass" id="walletXnoCard">
+          <h2>Your XNO to spend <span class="pill" id="walletXnoBal">—</span></h2>
+          <div class="muted" style="font-size:13px;margin-bottom:8px">Fund this Nano (XNO) account, then use the <b>Buy OBX</b> tab to swap it into OBX. Scan to send XNO from any Nano wallet:</div>
+          <div class="row" style="gap:14px;align-items:flex-start;flex-wrap:wrap">
+            <div id="walletXnoQR" style="background:#fff;padding:8px;border-radius:10px;width:max-content"></div>
+            <div style="flex:1;min-width:180px">
+              <div class="muted mono" id="walletXnoAddr" onclick="obxCopy(xnoAddrStr(),'XNO address copied')" style="cursor:pointer;word-break:break-all;font-size:12px" title="click to copy">—</div>
+              <div class="row" style="margin-top:10px;gap:8px">
+                <button class="ghost mini" onclick="walletRefreshXno()">Refresh balance</button>
+                <button class="ghost mini" onclick="showTab('swap')">Buy OBX →</button>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- BACKUP-CONFIRM GATE (audit #2). The first send is blocked until the user
              re-enters their full recovery phrase exactly, proving they wrote it down.
@@ -151,29 +169,30 @@
       </div>
     </section>
 
-    <!-- VAULTS -->
+    <!-- STAKE (flexible: no lock, no term, stake/unstake any time) -->
     <section id="t-vaults" class="hide">
       <div class="card glass">
-        <h2>Network staking</h2>
-        <div class="row"><div>Total value locked: <b id="tvl">—</b></div><div class="muted">yield pool: <span id="yieldPool">—</span></div></div>
+        <h2>Flexible staking</h2>
+        <div class="muted" style="font-size:13px">Stake OBX to earn yield from the network reward pool. <b>No lock-up and no fixed term</b> — stake or unstake whenever you like. Yield accrues every block.</div>
+        <div class="row" style="margin-top:8px"><div>Total staked on network: <b id="tvl">—</b></div><div class="muted">reward pool: <span id="yieldPool">—</span></div></div>
       </div>
       <div class="card glass" id="vaultDepositCard">
-        <h2>Stake (deposit)</h2>
-        <div class="muted" style="font-size:13px;margin-bottom:8px">Available to stake: <b id="vaultAvailAmt">—</b> <span class="muted" style="font-size:12px">(stake fee 0.01 OBX)</span></div>
-        <div class="row">
+        <h2>Stake OBX</h2>
+        <div class="muted" style="font-size:13px;margin-bottom:8px">Not staked (available): <b id="vaultAvailAmt">—</b> <span class="muted" style="font-size:12px">(fee 0.01 OBX)</span></div>
+        <div class="row" style="align-items:flex-end;gap:10px">
           <div style="flex:1">
-            <label>Amount (OBX) <a href="#" onclick="vaultMax();return false" style="color:var(--accent);font-size:11px;font-weight:400;text-decoration:none" title="stake your full available balance (minus the fee)">Max — stake all</a></label>
-            <input id="vAmt" inputmode="decimal" placeholder="10" oninput="vaultAmtHint()">
+            <label>Amount to stake (OBX) <a href="#" onclick="vaultMax();return false" style="color:var(--accent);font-size:11px;font-weight:400;text-decoration:none" title="stake your full available balance (minus the fee)">Max</a></label>
+            <input id="vAmt" inputmode="decimal" placeholder="0.0" oninput="vaultAmtHint()">
           </div>
-          <div style="flex:1"><label>Term</label><select id="vTerm"></select></div>
+          <button id="vStakeBtn" onclick="vaultDeposit()" style="flex:0 0 auto">Stake</button>
         </div>
         <div id="vDepHint" class="muted" style="font-size:12px;margin-top:6px"></div>
-        <div class="row" style="margin-top:12px"><button id="vStakeBtn" onclick="vaultDeposit()">Stake</button></div>
         <div id="vDepMsg"></div>
       </div>
       <div class="card glass">
-        <h2>Your vaults</h2>
-        <table><thead><tr><th>Vault</th><th>Amount</th><th>Term</th><th></th></tr></thead><tbody id="myVaults"><tr><td colspan="4" class="muted">none yet</td></tr></tbody></table>
+        <h2>Your stake</h2>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">Unstake any time — you get your principal back plus the yield earned so far.</div>
+        <table><thead><tr><th>Staked</th><th>Earned (est.)</th><th></th></tr></thead><tbody id="myVaults"><tr><td colspan="3" class="muted">nothing staked yet</td></tr></tbody></table>
       </div>
     </section>
 
@@ -206,7 +225,7 @@
           <button id="obSwapBtn" onclick="obAction()" style="font-size:16px;padding:12px 20px">Buy OBX now</button>
         </div>
         <div id="obStatus" style="margin-top:12px"></div>
-        <div class="muted" style="font-size:12px;margin-top:8px">Keys never leave this page. <b>Buy</b> swaps instantly (pay XNO → receive OBX). <b>Sell</b> places a signed sell order on the book that fills when a buyer matches it. On a hosted node your browser verifies the OBX chain through that node — for full trustlessness, run your own node.</div>
+        <div class="muted" style="font-size:12px;margin-top:8px">Keys never leave this page. <b>Buy</b> swaps instantly (pay XNO → receive OBX). <b>Sell</b> places a signed sell order on the book that fills when a buyer matches it.</div>
       </div>
 
       <!-- PRICE CHART (in-wallet). The chart lib is lazy-loaded only when the DEX
@@ -269,59 +288,54 @@
       </details>
     </section>
 
-    <!-- XNO PROCEEDS -->
-    <section id="t-xno" class="hide">
-      <!-- onboarding: shown once until the operator confirms they backed up the key -->
-      <div class="card glass" id="xnoOnboard">
-        <h2>Your XNO proceeds wallet</h2>
-        <div class="muted" style="font-size:14px;line-height:1.55">
-          When you mine OBX, this node automatically posts OBX→XNO swap offers and <b>sells your OBX for XNO</b>.
-          The XNO you receive lands in a real <b>Nano account derived from your miner seed</b> — it is yours, and it is
-          <b>recoverable anywhere</b> from the recovery key below. Nobody else holds it; no custodian, no admin.
+    <!-- MINE -->
+    <section id="t-mine" class="hide">
+      <div class="card glass">
+        <h2>Mine OBX</h2>
+        <div class="muted" style="font-size:14px;line-height:1.6">
+          Mining earns OBX by running a full node that does the network's proof-of-work. It's the most private way to get OBX — no swap, no counterparty — and it helps secure the chain. Rewards are paid straight to this wallet.
         </div>
-        <div class="warn" style="margin-top:10px">
-          Backup &amp; withdraw need <b>local / operator access to your own node</b> (loopback or an operator token).
-          The public website can only show your address and balance — it can never reveal or move your funds.
-        </div>
-        <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-          <button onclick="xnoReveal()">Reveal recovery key</button>
-          <span class="muted" style="font-size:12px;align-self:center">…then back it up before continuing.</span>
-        </div>
-        <div style="margin-top:10px">
-          <label>Operator token (only if your node sets OBX_RPC_TOKEN; leave empty on loopback)</label>
-          <input id="xnoOpToken" placeholder="operator bearer token (optional)" autocomplete="off">
-        </div>
-        <div id="xnoRevealBox"></div>
+      </div>
+      <div class="card glass">
+        <h2>How to mine — 3 steps</h2>
+        <ol style="margin:0 0 0 18px;padding:0;line-height:2">
+          <li><a href="/download" style="text-decoration:underline">Download the Obscura node</a> for your platform.</li>
+          <li>Start it with mining on, pointed at your wallet address:
+            <div class="row" style="margin-top:6px;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="mono" id="mineCmdBox" style="font-size:12px;word-break:break-all;background:rgba(148,163,184,.12);padding:6px 8px;border-radius:6px">./obscura-node --mine --mine-address …</span>
+              <button class="ghost mini" onclick="obxCopy(mineCmd(),'Command copied')">copy</button>
+            </div>
+          </li>
+          <li>Leave it running. Mined OBX appears in the <a href="#" onclick="showTab('wallet');return false" style="text-decoration:underline">Wallet</a> tab — press <b>Sync</b>.</li>
+        </ol>
+      </div>
+      <div class="card glass">
+        <h2>Your mining payout address</h2>
+        <div class="muted" style="font-size:13px;margin-bottom:6px">Coinbase rewards are paid to your wallet's OBX address:</div>
+        <div class="muted mono" id="mineAddr" onclick="copyAddr()" style="cursor:pointer;word-break:break-all;font-size:12px">—</div>
       </div>
 
-      <div class="card glass">
-        <h2>XNO balance</h2>
-        <div id="xnoMockBanner" class="hide warn" style="margin-bottom:8px">
-          ⚠ <b>Simulated proceeds.</b> This node has no Nano RPC configured (<span class="mono">backend: mock</span>),
-          so balances are not real on-ledger XNO. Start the node with <span class="mono">--nano-rpc</span> to sell for real XNO.
+      <!-- Operator-only: a mining node auto-sells OBX for XNO; this is its proceeds
+           account. Hidden machinery for self-hosters (loopback/operator token). -->
+      <details class="card glass" style="padding:0;border:1px solid rgba(148,163,184,.2)">
+        <summary style="cursor:pointer;padding:14px 16px;font-weight:600;color:var(--muted)">Operator: XNO proceeds from auto-sold mining rewards</summary>
+        <div style="padding:0 16px 14px">
+          <div id="xnoMockBanner" class="hide warn" style="margin:8px 0">
+            ⚠ <b>Simulated proceeds.</b> This node has no Nano RPC (<span class="mono">backend: mock</span>); start it with <span class="mono">--nano-rpc</span> for real XNO.
+          </div>
+          <div class="big" id="xnoBalance">— XNO</div>
+          <div class="muted" style="margin-top:6px">incoming (receivable): <b id="xnoReceivable">—</b></div>
+          <div class="muted mono" id="xnoAddress" onclick="xnoCopyAddr()" style="cursor:pointer;word-break:break-all;font-size:12px;margin-top:8px" title="click to copy">—</div>
+          <div class="row" style="margin-top:8px;gap:8px"><button class="ghost mini" onclick="loadXNO()" id="xnoRefreshBtn">Refresh</button><span class="muted" id="xnoStatus" style="align-self:center"></span></div>
+          <div style="margin-top:10px"><label>Operator token (only if your node sets OBX_RPC_TOKEN)</label><input id="xnoOpToken" placeholder="operator bearer token (optional)" autocomplete="off"></div>
+          <div class="row" style="margin-top:8px;gap:8px"><button class="ghost mini" onclick="xnoReveal()">Reveal recovery key</button></div>
+          <div id="xnoRevealBox"></div>
+          <label style="margin-top:10px">Withdraw to (nano_ address)</label><input id="xnoWdDest" placeholder="nano_…">
+          <label>Amount (raw)</label><input id="xnoWdAmt" inputmode="numeric" placeholder="raw (1 XNO = 1e30 raw)">
+          <div class="row" style="margin-top:10px"><button class="ghost" onclick="xnoWithdraw()">Withdraw</button></div>
+          <div id="xnoWdMsg"></div>
         </div>
-        <div class="big" id="xnoBalance">— XNO</div>
-        <div class="muted" style="margin-top:6px">incoming (receivable): <b id="xnoReceivable">—</b></div>
-        <div class="row" style="margin-top:8px">
-          <button onclick="loadXNO()" id="xnoRefreshBtn">Refresh</button>
-          <span class="muted" id="xnoStatus" style="align-self:center"></span>
-        </div>
-      </div>
-
-      <div class="card glass">
-        <h2>XNO address</h2>
-        <div class="muted" style="font-size:13px;margin-bottom:6px">Your Nano receive address for swap proceeds (derived from your miner seed):</div>
-        <div class="muted mono" id="xnoAddress" onclick="xnoCopyAddr()" style="cursor:pointer;word-break:break-all" title="click to copy">—</div>
-      </div>
-
-      <div class="card glass">
-        <h2>Withdraw XNO</h2>
-        <div class="muted" style="font-size:13px;margin-bottom:6px">Send proceeds to an external Nano address. Requires local/operator access to your node.</div>
-        <label>Destination (nano_ address)</label><input id="xnoWdDest" placeholder="nano_…">
-        <label>Amount (raw)</label><input id="xnoWdAmt" inputmode="numeric" placeholder="raw (1 XNO = 1e30 raw)">
-        <div class="row" style="margin-top:12px"><button onclick="xnoWithdraw()">Withdraw</button></div>
-        <div id="xnoWdMsg"></div>
-      </div>
+      </details>
     </section>
   </div>
 
@@ -333,6 +347,7 @@
 </div>
 
 <script src="/wasm_exec.js" integrity="sha384-PWCs+V4BDf9yY1yjkD/p+9xNEs4iEbuvq+HezAOJiY3XL5GI6VyJXMsvnjiwNbce" crossorigin="anonymous"></script>
+<script src="/qrcodegen.js"></script>
 <script>
 const API = "/api/explorer";
 const ATOMIC = 1000000000000n; // 1 OBX = 1e12
@@ -465,20 +480,6 @@ async function unlockExisting(){
   }
 }
 
-// ---- trust banner: soften wording when running against YOUR OWN node ----
-// On localhost (the desktop app or a self-hosted node) there is no shared operator,
-// so the privacy caveat doesn't apply; keep the test-chain / seed-backup warning.
-(function(){
-  const b=el("trustBanner"); if(!b) return;
-  const h=location.hostname;
-  if(h==="localhost"||h==="127.0.0.1"||h==="[::1]"||h===""){
-    b.classList.remove("danger"); b.classList.add("warn");
-    b.innerHTML=`<b>Running on your own node.</b> This wallet talks to <b>your own local node</b>, so your activity stays on your machine. Your recovery phrase is encrypted in this browser — back up your 24 words.`;
-    // already self-hosted → the "run your own node" guidance is moot; hide it.
-    const note=el("ownNodeNote"); if(note) note.classList.add("hide");
-  }
-})();
-
 // ---- WASM build authenticity (audit #3b + #4) ----
 // Expected sha384 of /wallet.wasm, base64 (SRI form) and sha256 hex for the visible
 // build line. Recompute after every rebuild:
@@ -486,8 +487,8 @@ async function unlockExisting(){
 //   shasum -a 256 wallet.wasm | cut -d' ' -f1
 // A <script> tag can't carry SRI for a fetch()+instantiate load, so we verify the bytes
 // here BEFORE instantiating and abort on any mismatch (a swapped binary cannot run).
-const WASM_SHA384_B64 = "P4SHbkzq9Io4aNdr2GDP1ru7InSU014RQVr5W1DlMWNkbV/OO2hNLXHXsKkTIkkk";
-const WASM_SHA256_HEX = "197dd8b8f89905530e7affc7682c123b4743250a05ebc29c64c0c9e58a1f2afc";
+const WASM_SHA384_B64 = "R59jFasns+aWtMM4oI98qVQMdg2qNb9eTGe+03wy4pWfk+pE3GE6zd9kcE6m7ilJ";
+const WASM_SHA256_HEX = "895cf6983cfeb6b194201753bfccf72ee87e440082ce99d502ce096b9808463a";
 function b64FromBytes(buf){
   const b=new Uint8Array(buf); let s=""; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s);
 }
@@ -548,8 +549,6 @@ let ready=false;
     // show the verified build hash so the user can compare it to a published value
     el("buildHash").textContent="wallet build: sha256 "+WASM_SHA256_HEX;
     el("boot").classList.add("hide"); el("app").classList.remove("hide");
-    // populate term dropdown
-    el("vTerm").innerHTML=TERMS.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join("");
     // auto-restore from localStorage — seed is now ENCRYPTED at rest (audit #1).
     // Legacy plaintext wallets are migrated to the encrypted blob on first load.
     if(hasLegacyWallet() && !hasEncryptedWallet()){ await migrateLegacy(); }
@@ -572,12 +571,24 @@ let ready=false;
 })();
 
 // ---- tabs ----
+// showTab(name) activates a tab programmatically (also used by the entry gate and
+// in-page "Buy OBX →" / "Wallet" links). The same body the tab clicks used to run.
+function showTab(name){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x.dataset.tab===name));
+  for(const s of ["wallet","vaults","swap","mine"]) el("t-"+s).classList.toggle("hide", s!==name);
+  if(name==="wallet"){ walletRefreshXno(); }
+  if(name==="vaults") loadVaults();
+  if(name==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); obInitCard(); dexChartStart(); } else { stopSwapsPoll(); dexChartStop(); }
+  if(name==="mine"){ mineInit(); }
+}
+// The two-box entry gate: reveal the tabbed app focused on the chosen path.
+function choosePath(p){
+  el("entryGate").classList.add("hide");
+  el("tabBar").classList.remove("hide");
+  showTab(p==="mine" ? "mine" : "swap");
+}
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
-  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); t.classList.add("on");
-  for(const s of ["wallet","vaults","swap","xno"]) el("t-"+s).classList.toggle("hide", s!==t.dataset.tab);
-  if(t.dataset.tab==="vaults") loadVaults();
-  if(t.dataset.tab==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); obInitCard(); dexChartStart(); } else { stopSwapsPoll(); dexChartStop(); }
-  if(t.dataset.tab==="xno"){ xnoInitOnboard(); loadXNO(); }
+  showTab(t.dataset.tab);
 });
 
 // ---- wallet ----
@@ -625,6 +636,12 @@ async function confirmRestore(ph){
 function showWallet(){
   el("noWallet").classList.add("hide"); el("haveWallet").classList.remove("hide");
   refreshInfo(); refreshBackupGate();
+  // Wallet is ready → present the two-box entry gate (Mine vs Buy) first; the tab
+  // bar and tab content stay hidden until the user picks a path (choosePath).
+  el("entryGate").classList.remove("hide");
+  el("tabBar").classList.add("hide");
+  for(const s of ["wallet","vaults","swap","mine"]) el("t-"+s).classList.add("hide");
+  walletRefreshXno();
 }
 // ---- backup-confirm gate (audit #2) ----
 const BACKUP_CONFIRMED_KEY="obx_backup_confirmed";
@@ -840,43 +857,108 @@ function vaultAmtHint(){
 async function loadVaults(){
   vaultRefreshBalance();
   try{ const v=await get("vaults"); el("tvl").textContent=v.tvl_obx+" OBX"; el("yieldPool").textContent=(v.yield_pool_obx||"—")+" OBX"; }catch(e){}
+  renderMyVaults();
 }
+
+// ---- QR rendering (vendored qrcodegen.js, no-eval; drawn to a canvas) ----
+function renderQR(elId, text){
+  const host=el(elId); if(!host) return;
+  host.innerHTML="";
+  if(!text || typeof qrcodegen==="undefined"){ return; }
+  try{
+    const qr=qrcodegen.encodeText(text, qrcodegen.Ecc.MEDIUM);
+    const n=qr.size, scale=4, border=2, dim=(n+border*2)*scale;
+    const c=document.createElement("canvas"); c.width=dim; c.height=dim; c.style.width=dim+"px"; c.style.height=dim+"px"; c.style.display="block";
+    const ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,dim,dim); ctx.fillStyle="#000";
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(qr.getModule(x,y)) ctx.fillRect((x+border)*scale,(y+border)*scale,scale,scale);
+    host.appendChild(c);
+  }catch(e){ host.textContent="(QR unavailable)"; }
+}
+
+// ---- XNO (swap) account shown on the WALLET page: fund it, spend it to buy OBX ----
+function xnoAddrStr(){ if(typeof xnoAccount!=="function") return ""; const a=xnoAccount(); return (a&&!a.error)?a.account:""; }
+async function walletRefreshXno(){
+  const addr=xnoAddrStr(); if(!addr) return;
+  const ad=el("walletXnoAddr"); if(ad) ad.textContent=addr;
+  renderQR("walletXnoQR", addr);
+  try{
+    const info=await get("nanoaccount","&account="+encodeURIComponent(addr));
+    const p=el("walletXnoBal"); if(p) p.textContent=fmtUnits(info.balance||"0",30)+" XNO";
+  }catch(e){ const p=el("walletXnoBal"); if(p) p.textContent="(Nano RPC offline)"; }
+}
+
+// ---- Mine tab helpers ----
+function mineCmd(){ const a=((el("address")&&el("address").textContent)||"").trim(); return "./obscura-node --mine --mine-address "+(a||"<your-address>"); }
+function mineInit(){
+  const a=((el("address")&&el("address").textContent)||"").trim();
+  if(el("mineAddr")) el("mineAddr").textContent=a||"create or restore a wallet first";
+  if(el("mineCmdBox")) el("mineCmdBox").textContent=mineCmd();
+}
+// FLEXIBLE stake: always term 0 (no lock). We remember the vault id + amount; the
+// authoritative deposit height (for pro-rata yield) is read back from the chain at
+// unstake time via /vaults, so a stored estimate can never exceed the consensus cap.
 async function vaultDeposit(){
   msg("vDepMsg","muted","building…");
   try{
-    const amtR=obxToAtomic(el("vAmt").value); if(amtR.error) return msg("vDepMsg","err","amount: "+amtR.error);
-    const amt=amtR.atomic; const term=el("vTerm").value;
+    const amtR=obxToAtomic(el("vAmt").value); if(amtR.error||BigInt(amtR.atomic)<=0n) return msg("vDepMsg","err","enter an amount to stake");
+    const amt=amtR.atomic;
     const fee=obxToAtomic(STAKE_FEE_OBX).atomic;
-    // guard: don't submit a deposit that exceeds the spendable balance (incl. fee).
     if(BigInt(amt)+BigInt(fee)>vaultSpendableAtomic()) return msg("vDepMsg","err","amount + fee exceeds your available balance — use Max or enter less.");
     const {height}=await get("height");
-    const r=obxBuildVaultDeposit(amt,term,fee,String(height));
+    const r=obxBuildVaultDeposit(amt,"0",fee,String(height)); // term 0 = flexible
     if(r.error) return msg("vDepMsg","err",r.error);
     const s=await post("submittx",{tx:r.txhex});
-    // remember the vault id so we can claim later
     const mine=JSON.parse(localStorage.getItem("obx_vaults")||"[]");
-    mine.push({id:r.vault_id,amount:amt,term:term});
+    mine.push({id:r.vault_id,amount:amt});
     localStorage.setItem("obx_vaults",JSON.stringify(mine));
+    el("vAmt").value="";
     msg("vDepMsg","ok","Staked ✓ txid "+s.txid);
     renderMyVaults(); setTimeout(sync,800);
   }catch(e){ msg("vDepMsg","err",e.message); }
 }
-function renderMyVaults(){
+// renderMyVaults reconciles the locally-remembered stakes against the live chain:
+// it shows the staked amount + estimated yield earned so far, and an Unstake button.
+async function renderMyVaults(){
   const mine=JSON.parse(localStorage.getItem("obx_vaults")||"[]");
-  el("myVaults").innerHTML = mine.length? mine.map((v,i)=>`<tr>
-    <td class="mono">${v.id.slice(0,10)}…</td><td>${atomicToObx(v.amount)} OBX</td><td>${v.term}</td>
-    <td><button class="ghost" onclick="vaultClaim(${i})">Claim</button></td></tr>`).join("")
-    : `<tr><td colspan="4" class="muted">none yet</td></tr>`;
+  const tb=el("myVaults"); if(!tb) return;
+  if(!mine.length){ tb.innerHTML=`<tr><td colspan="3" class="muted">nothing staked yet</td></tr>`; return; }
+  let chain={vaults:[]}, height=0;
+  try{ chain=await get("vaults"); }catch(e){}
+  try{ height=(await get("height")).height||0; }catch(e){}
+  const byKey={}; (chain.vaults||[]).forEach(v=>byKey[(v.key||"").toLowerCase()]=v);
+  tb.innerHTML = mine.map((v,i)=>{
+    const cv=byKey[(v.id||"").toLowerCase()];
+    let earned="…";
+    if(cv){ earned=atomicToObx(estFlexYield(v.amount, cv.deposit_height, height, cv.rate_bps).toString())+" OBX"; }
+    else { earned="(confirming)"; }
+    return `<tr><td>${atomicToObx(v.amount)} OBX</td><td class="muted">${earned}</td>
+      <td><button class="ghost mini" onclick="vaultUnstake(${i})">Unstake</button></td></tr>`;
+  }).join("");
 }
-async function vaultClaim(i){
+// estFlexYield mirrors config.VaultFlexYield: principal·rateBps·elapsed/(blocksPerYear·1e4).
+const VAULT_BLOCKS_PER_YEAR=262800n;
+function estFlexYield(principalAtomic, depHeight, curHeight, rateBps){
+  try{
+    const p=BigInt(principalAtomic), h0=BigInt(depHeight||0), h1=BigInt(curHeight||0), r=BigInt(rateBps||0);
+    if(h1<=h0) return 0n;
+    return (p*r*(h1-h0))/(VAULT_BLOCKS_PER_YEAR*10000n);
+  }catch(_){ return 0n; }
+}
+async function vaultUnstake(i){
   const mine=JSON.parse(localStorage.getItem("obx_vaults")||"[]"); const v=mine[i]; if(!v) return;
   try{
+    // read the AUTHORITATIVE deposit height + current tip from the chain so the
+    // stated yield is exactly what consensus will accept.
+    const chain=await get("vaults");
+    const cv=(chain.vaults||[]).find(x=>(x.key||"").toLowerCase()===(v.id||"").toLowerCase());
+    if(!cv){ alert("This stake isn't confirmed on-chain yet — try again in a minute."); return; }
+    const {height}=await get("height");
     const fee=obxToAtomic("0.01").atomic;
-    const r=obxBuildVaultClaim(v.id,v.amount,String(v.term),fee);
+    const r=obxBuildVaultClaim(v.id,v.amount,"0",fee,String(cv.deposit_height),String(height));
     if(r.error) return alert(r.error);
     const s=await post("submittx",{tx:r.txhex});
     mine.splice(i,1); localStorage.setItem("obx_vaults",JSON.stringify(mine)); renderMyVaults();
-    alert("Claimed ✓ txid "+s.txid); setTimeout(sync,800);
+    alert("Unstaked ✓ — principal + earned yield returned. txid "+s.txid); setTimeout(sync,800);
   }catch(e){ alert(e.message); }
 }
 
@@ -1079,7 +1161,7 @@ async function obSwap(){
   try{ const r=await get("nanoreceivable","&account="+encodeURIComponent(acct.account)); if(r.found) recv=BigInt(r.amount||"0"); }catch(e){}
   const need=BigInt(q.xno_raw);
   if(bal+recv<need){
-    el("obFund").innerHTML=`Deposit at least <b>${fmtUnits(q.xnoOUexact,12)} XNO</b> to your swap account, then press Swap again:<br><span class="mono" style="font-size:12px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
+    obShowFundQR(acct.account, `Send at least <b>${fmtUnits(q.xnoOUexact,12)} XNO</b> to your account, then press Buy again:`);
     st.innerHTML='<span style="color:#fbbf24">Awaiting XNO deposit…</span>';
     return;
   }
@@ -1103,10 +1185,28 @@ async function obInitCard(){
   obSetSide(_obSide||"buy"); // default to Buy on first open, keep the chosen side on refresh
   try{
     const info=await get("nanoaccount","&account="+encodeURIComponent(acct.account));
-    el("obFund").innerHTML=`Deposit XNO to swap into OBX → <span class="mono" style="font-size:12px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
+    if(BigInt(info.balance||"0")<=0n){
+      obShowFundQR(acct.account, "You have no XNO yet. Send XNO to this account (scan or copy), then come back and Buy:");
+    } else {
+      el("obFund").innerHTML=`Funded — ready to buy. Your XNO account: <span class="mono" style="font-size:12px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
+    }
   }catch(e){
     el("obFund").innerHTML=`Your swap account: <span class="mono" style="font-size:12px">${acct.account}</span> <span class="muted">(node Nano RPC offline)</span>`;
   }
+}
+// obShowFundQR renders the "fund your XNO account" prompt with a scannable QR so a
+// user with zero XNO can top up from any Nano wallet, then buy OBX.
+function obShowFundQR(account, message){
+  el("obFund").innerHTML=`<div style="margin-bottom:8px">${message}</div>
+    <div class="row" style="gap:12px;align-items:flex-start;flex-wrap:wrap">
+      <div id="obFundQR" style="background:#fff;padding:8px;border-radius:10px;width:max-content"></div>
+      <div style="flex:1;min-width:160px">
+        <div class="mono" style="font-size:12px;word-break:break-all">${account}</div>
+        <button class="ghost mini" style="margin-top:8px" onclick="obxCopy('${account}','XNO address copied')">copy address</button>
+        <button class="ghost mini" style="margin-top:8px" onclick="obRefreshBalances();obInitCard()">I've funded it ✓</button>
+      </div>
+    </div>`;
+  renderQR("obFundQR", account);
 }
 // ---- in-wallet price chart (lightweight-charts, lazy-loaded on DEX-tab open) ----
 let _lwc=null,_lwcLoading=null,_dexChart=null,_dexSeries=null,_dexTimer=null;

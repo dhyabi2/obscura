@@ -167,16 +167,29 @@ func (w *Wallet) BuildVaultDeposit(view ChainView, ownerPub []byte, amount, term
 // BuildVaultClaim claims a matured vault, paying principal + yield (minus fee) to
 // this wallet as a fresh confidential output. The principal + yield re-enter as a
 // public-IN leg. Authorized by the vault key. Modeled on BuildSwapSpend.
-func (w *Wallet) BuildVaultClaim(key *VaultKey, vaultID []byte, principal, term, fee uint64) (*tx.Transaction, error) {
+// For a FLEXIBLE vault (term == 0) the yield is pro-rata over (claimHeight −
+// depositHeight); claimHeight should be the current chain tip — consensus accepts
+// any later inclusion height since it only CAPS the stated yield. For a fixed-term
+// vault the heights are ignored and the full snapshotted rate is paid.
+func (w *Wallet) BuildVaultClaim(key *VaultKey, vaultID []byte, principal, term, fee, depositHeight, claimHeight uint64) (*tx.Transaction, error) {
 	if w.IsViewOnly() {
 		return nil, errors.New("wallet: view-only wallet cannot receive claim proceeds")
 	}
 	if len(vaultID) != 32 {
 		return nil, errors.New("wallet: bad vault id")
 	}
-	yield, ok := VaultYield(principal, term)
-	if !ok {
-		return nil, errors.New("wallet: invalid vault term")
+	var yield uint64
+	if term == 0 {
+		var elapsed uint64
+		if claimHeight > depositHeight {
+			elapsed = claimHeight - depositHeight
+		}
+		yield = config.VaultFlexYield(principal, elapsed)
+	} else {
+		var ok bool
+		if yield, ok = VaultYield(principal, term); !ok {
+			return nil, errors.New("wallet: invalid vault term")
+		}
 	}
 	total, ovf := addCheck(principal, yield)
 	if ovf {
@@ -190,7 +203,7 @@ func (w *Wallet) BuildVaultClaim(key *VaultKey, vaultID []byte, principal, term,
 		return nil, err
 	}
 	t := &tx.Transaction{Version: 1, Fee: fee, Outputs: []tx.Output{out}}
-	t.VaultInputs = []tx.VaultIn{{VaultKey: append([]byte(nil), vaultID...)}}
+	t.VaultInputs = []tx.VaultIn{{VaultKey: append([]byte(nil), vaultID...), Yield: yield}}
 	ctx := t.CoreHash()
 	t.VaultInputs[0].Sig = key.Sign(ctx[:])
 	// (principal+yield)·H − C_out − fee·H == z·G ; z = −rOut

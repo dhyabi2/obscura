@@ -270,6 +270,7 @@ func explorerTx(t *tx.Transaction) ExplorerTx {
 // ExplorerVault is a public view of a live staking vault (amounts are public for
 // vaults, like atomic swaps; the owner is a stealth-independent vault key).
 type ExplorerVault struct {
+	Key           string `json:"key"` // hex vault id (wallet matches its local deposit)
 	AmountOBX     string `json:"amount_obx"`
 	Term          uint64 `json:"term_blocks"`
 	RateBps       uint64 `json:"rate_bps"`
@@ -295,6 +296,7 @@ func (s *Server) handleExplorerVaults(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, v := range s.chain.VaultList() {
 		out.Vaults = append(out.Vaults, ExplorerVault{
+			Key:           v.Key,
 			AmountOBX:     config.FormatAmount(v.Amount),
 			Term:          v.Term,
 			RateBps:       v.RateBps,

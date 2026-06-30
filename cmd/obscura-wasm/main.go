@@ -179,13 +179,15 @@ func obxBuildVaultDeposit(this js.Value, args []js.Value) any {
 	return map[string]any{"txhex": hex.EncodeToString(t.Serialize()), "vault_id": hex.EncodeToString(vaultID)}
 }
 
-// obxBuildVaultClaim(vaultIdHex, principal, term, fee) -> {txhex}
+// obxBuildVaultClaim(vaultIdHex, principal, term, fee, depositHeight, claimHeight) -> {txhex}
+// For a flexible vault (term 0) the yield is pro-rata over claimHeight−depositHeight;
+// pass the current chain tip as claimHeight (later inclusion only RAISES entitlement).
 func obxBuildVaultClaim(this js.Value, args []js.Value) any {
 	if w == nil {
 		return errObj("no wallet")
 	}
-	if len(args) < 4 {
-		return errObj("need vaultId, principal, term, fee")
+	if len(args) < 6 {
+		return errObj("need vaultId, principal, term, fee, depositHeight, claimHeight")
 	}
 	vaultID, err := hex.DecodeString(args[0].String())
 	if err != nil {
@@ -194,11 +196,13 @@ func obxBuildVaultClaim(this js.Value, args []js.Value) any {
 	principal, ok1 := u64(args[1])
 	term, ok2 := u64(args[2])
 	fee, ok3 := u64(args[3])
-	if !ok1 || !ok2 || !ok3 {
+	depositHeight, ok4 := u64(args[4])
+	claimHeight, ok5 := u64(args[5])
+	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
 		return errObj("bad numeric arg")
 	}
 	vk := wallet.DeriveVaultKey(seed)
-	t, err := w.BuildVaultClaim(vk, vaultID, principal, term, fee)
+	t, err := w.BuildVaultClaim(vk, vaultID, principal, term, fee, depositHeight, claimHeight)
 	if err != nil {
 		return errObj(err.Error())
 	}
