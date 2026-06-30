@@ -59,6 +59,24 @@
     background:linear-gradient(90deg,var(--accent-2),var(--accent))}
   .animframe iframe{display:block;width:100%;height:780px;border:0}
   @media(max-width:680px){.animframe iframe{height:660px} .sec-head{margin-top:40px}}
+  /* ---- hero tagline slider ---- */
+  .oslider{position:relative;max-width:880px;margin:0 auto;min-height:210px;border-radius:22px;
+    background:radial-gradient(120% 130% at 50% 0,rgba(139,108,255,.14),rgba(255,255,255,.02) 70%);
+    border:1px solid rgba(255,255,255,.08);overflow:hidden}
+  .oslide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;padding:34px 28px;opacity:0;transform:translateY(12px);transition:opacity .55s ease,transform .55s ease;pointer-events:none}
+  .oslide.on{opacity:1;transform:none;pointer-events:auto}
+  .oicon{font-size:42px;line-height:1}
+  .ohead{font-size:clamp(24px,4.4vw,40px);margin:2px 0;font-weight:700;line-height:1.1;
+    background:linear-gradient(92deg,#eaf6ff,var(--accent-2) 45%,var(--accent) 95%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .osub{color:var(--mut,#9aa3b2);font-size:15px;max-width:560px;margin:0;line-height:1.5}
+  .odots{display:flex;gap:8px;justify-content:center;margin:16px 0 2px;flex-wrap:wrap}
+  .odots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.22);cursor:pointer;transition:.25s}
+  .odots i.on{background:var(--accent-2);width:22px;border-radius:5px}
+  .octa{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+  .octa .x-link{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:11px;
+    border:1px solid rgba(255,255,255,.14);color:#fff;text-decoration:none;font-weight:600;transition:.2s}
+  .octa .x-link:hover{border-color:var(--accent-2);background:rgba(255,255,255,.04)}
 </style>
 </head>
 <body>
@@ -81,6 +99,25 @@
 </nav>
 
 <main>
+  <!-- SECTION 0 · hero tagline slider -->
+  <section class="section" id="hero" style="margin-top:30px">
+    <div class="oslider" id="oslider">
+      <div class="oslide on"><span class="oicon">🛡️</span><h2 class="ohead">Maximum-privacy coin</h2><p class="osub">Amounts hidden, recipients hidden — proven against a single <b>global</b> anonymity set.</p></div>
+      <div class="oslide"><span class="oicon">🐢</span><h2 class="ohead">Unfortunately, not fast</h2><p class="osub">We trade speed for privacy. On purpose — and we won't apologize for it.</p></div>
+      <div class="oslide"><span class="oicon">⚖️</span><h2 class="ohead">100% fair distribution</h2><p class="osub">Every coin is mined. No pre-mine, no sale, no insiders.</p></div>
+      <div class="oslide"><span class="oicon">🚫</span><h2 class="ohead">No dev coins</h2><p class="osub">Zero founder allocation. Not a single coin set aside.</p></div>
+      <div class="oslide"><span class="oicon">📖</span><h2 class="ohead">100% open</h2><p class="osub">Open protocol, open source, open to everyone.</p></div>
+      <div class="oslide"><span class="oicon">⛏️</span><h2 class="ohead">Minable</h2><p class="osub">Earn OBX with CPU proof-of-work (RandomX) — no special hardware.</p></div>
+      <div class="oslide"><span class="oicon">💰</span><h2 class="ohead">Staking of rewards</h2><p class="osub">Stake your OBX <b>any time</b> — earn yield, unstake whenever you want.</p></div>
+      <div class="oslide"><span class="oicon">🤝</span><h2 class="ohead">Join the community &amp; start mining</h2><p class="osub">Run a node, mine OBX, and help the network grow.</p></div>
+    </div>
+    <div class="odots" id="odots"></div>
+    <div class="octa">
+      <a class="nav-cta" href="/download">⛏ Start mining →</a>
+      <a class="x-link" href="https://x.com/ObscuraCoin" target="_blank" rel="noopener">𝕏 Follow on X</a>
+    </div>
+  </section>
+
   <!-- SECTION 1 (top) · the transaction-journey animation -->
   <section class="section" id="animation" style="margin-top:40px">
     <div class="animframe">
@@ -220,6 +257,20 @@ classDef stop fill:#2a0f12,stroke:#ff5a5a,color:#ffd9d9;
     var t=document.querySelector(".nav-toggle"), l=document.querySelector(".nav-links");
     if(t&&l){ t.addEventListener("click",function(){l.classList.toggle("open");});
       l.querySelectorAll("a").forEach(function(a){a.addEventListener("click",function(){l.classList.remove("open");});}); }
+  })();
+  // Hero tagline slider: auto-rotate, clickable dots, pause on hover.
+  (function(){
+    var sl=document.getElementById("oslider"); if(!sl) return;
+    var slides=sl.querySelectorAll(".oslide"), dotsEl=document.getElementById("odots"), i=0, timer;
+    slides.forEach(function(_,n){ var d=document.createElement("i"); if(n===0)d.className="on";
+      d.addEventListener("click",function(){go(n);start();}); dotsEl.appendChild(d); });
+    var dots=dotsEl.querySelectorAll("i");
+    function go(n){ slides[i].classList.remove("on"); dots[i].classList.remove("on");
+      i=(n+slides.length)%slides.length; slides[i].classList.add("on"); dots[i].classList.add("on"); }
+    function start(){ clearInterval(timer); timer=setInterval(function(){go(i+1);},3800); }
+    start();
+    sl.addEventListener("mouseenter",function(){clearInterval(timer);});
+    sl.addEventListener("mouseleave",start);
   })();
 </script>
 </body>
