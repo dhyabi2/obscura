@@ -131,10 +131,10 @@ open ~/Downloads/Obscura-darwin-arm64.app</pre>
       <p class="muted tiny">Installs + starts a full node + miner that joins mainnet. <b>Run the exact same command again any time to upgrade:</b> it detects the running node, checks for a newer published build, asks you to confirm, replaces the binary, and restarts it. Your wallet/miner keys in <code>~/.obscura</code> are never touched — only the program is replaced.</p>
       <pre><span class="muted"># install + run, and re-run to upgrade (verifies the SHA-256 before replacing)</span>
 curl -fsSL https://obscura-blush.vercel.app/install.sh | sh</pre>
-      <p class="muted tiny">Pass your own node flags after <code>-s --</code> (defaults to <code>--mine --seeds 167.172.56.34:18080</code>):</p>
-      <pre>curl -fsSL https://obscura-blush.vercel.app/install.sh | sh -s -- --mine --seeds 167.172.56.34:18080</pre>
+      <p class="muted tiny">Pass your own node flags after <code>-s --</code> (defaults to <code>--mine --seeds 68.183.39.84:18080</code>):</p>
+      <pre>curl -fsSL https://obscura-blush.vercel.app/install.sh | sh -s -- --mine --seeds 68.183.39.84:18080</pre>
       <p class="muted tiny">On a desktop with a screen, use the GUI app instead: <code>tar xzf Obscura-linux-amd64.tar.gz &amp;&amp; cd Obscura-linux-amd64 &amp;&amp; ./obscura</code> (wallet + swap + mining window).</p>
-      <p class="muted tiny">Prefer to do it by hand? <code>curl -fL https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz | tar xz &amp;&amp; ./Obscura-linux-amd64/obscura-node --mine --seeds 167.172.56.34:18080</code></p>
+      <p class="muted tiny">Prefer to do it by hand? <code>curl -fL https://github.com/dhyabi2/obscura/releases/download/v1.0.0/Obscura-linux-amd64.tar.gz | tar xz &amp;&amp; ./Obscura-linux-amd64/obscura-node --mine --seeds 68.183.39.84:18080</code></p>
     </details>
 
     <details class="adv">

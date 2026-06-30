@@ -578,7 +578,7 @@ function showTab(name){
   for(const s of ["wallet","vaults","swap","mine"]) el("t-"+s).classList.toggle("hide", s!==name);
   if(name==="wallet"){ walletRefreshXno(); }
   if(name==="vaults") loadVaults();
-  if(name==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); obInitCard(); dexChartStart(); } else { stopSwapsPoll(); dexChartStop(); }
+  if(name==="swap"){ loadOffers(); loadLiquidity(); startSwapsPoll(); obInitCard(); dexChartStart(); } else { stopSwapsPoll(); dexChartStop(); stopFundWatch(); }
   if(name==="mine"){ mineInit(); }
 }
 // The two-box entry gate: reveal the tabbed app focused on the chosen path.
@@ -867,7 +867,7 @@ function renderQR(elId, text){
   if(!text || typeof qrcodegen==="undefined"){ return; }
   try{
     const qr=qrcodegen.encodeText(text, qrcodegen.Ecc.MEDIUM);
-    const n=qr.size, scale=4, border=2, dim=(n+border*2)*scale;
+    const n=qr.size, scale=5, border=4, dim=(n+border*2)*scale;
     const c=document.createElement("canvas"); c.width=dim; c.height=dim; c.style.width=dim+"px"; c.style.height=dim+"px"; c.style.display="block";
     const ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,dim,dim); ctx.fillStyle="#000";
     for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(qr.getModule(x,y)) ctx.fillRect((x+border)*scale,(y+border)*scale,scale,scale);
@@ -881,10 +881,8 @@ async function walletRefreshXno(){
   const addr=xnoAddrStr(); if(!addr) return;
   const ad=el("walletXnoAddr"); if(ad) ad.textContent=addr;
   renderQR("walletXnoQR", addr);
-  try{
-    const info=await get("nanoaccount","&account="+encodeURIComponent(addr));
-    const p=el("walletXnoBal"); if(p) p.textContent=fmtUnits(info.balance||"0",30)+" XNO";
-  }catch(e){ const p=el("walletXnoBal"); if(p) p.textContent="(Nano RPC offline)"; }
+  const total=await fundTotalRaw(addr);
+  const p=el("walletXnoBal"); if(p) p.textContent=(total==null)?"(Nano RPC offline)":fmtUnits(total.toString(),30)+" XNO";
 }
 
 // ---- Mine tab helpers ----
@@ -1043,7 +1041,7 @@ async function obMax(){
 // live balances for BOTH coins: OBX from the wallet, XNO from the swap account.
 async function obRefreshBalances(){
   if(el("obBalObx")&&typeof obxInfo==="function"){ const i=obxInfo(); if(!i.error&&i.balance!=null) el("obBalObx").textContent=atomicToObx(i.balance)+" OBX"; }
-  if(el("obBalXno")&&typeof xnoAccount==="function"){ const a=xnoAccount(); if(!a.error){ try{ const info=await get("nanoaccount","&account="+encodeURIComponent(a.account)); el("obBalXno").textContent=fmtUnits(info.balance||"0",30)+" XNO"; }catch(e){ el("obBalXno").textContent="(node Nano offline)"; } } }
+  if(el("obBalXno")&&typeof xnoAccount==="function"){ const a=xnoAccount(); if(!a.error){ const total=await fundTotalRaw(a.account); el("obBalXno").textContent=(total==null)?"(node Nano offline)":fmtUnits(total.toString(),30)+" XNO"; } }
 }
 // current market rate (XNO per OBX) from the best OBX→XNO offer, else null.
 function obMarketRate(){ const o=bestObxOffer(); if(!o) return null; const G=Number(o.give_amount),T=Number(o.get_amount); return G>0?T/G:null; }
@@ -1184,18 +1182,23 @@ async function obInitCard(){
   obRefreshBalances();
   obSetSide(_obSide||"buy"); // default to Buy on first open, keep the chosen side on refresh
   try{
-    const info=await get("nanoaccount","&account="+encodeURIComponent(acct.account));
-    if(BigInt(info.balance||"0")<=0n){
-      obShowFundQR(acct.account, "You have no XNO yet. Send XNO to this account (scan or copy), then come back and Buy:");
+    // "funded" = balance OR a still-pending incoming (receivable) — the buy flow
+    // pockets receivables, so a pending deposit already means ready-to-buy.
+    const total=await fundTotalRaw(acct.account);
+    if(total!=null && total<=0n){
+      obShowFundQR(acct.account, "You have no XNO yet. Scan the QR (or copy the address) and send XNO — the wallet detects it automatically:");
+    } else if(total!=null){
+      stopFundWatch();
+      el("obFund").innerHTML=`<span class="ok">✓ Funded — ${fmtUnits(total.toString(),30)} XNO available</span>. Enter an amount and press Buy. <span class="mono" style="font-size:11px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
     } else {
-      el("obFund").innerHTML=`Funded — ready to buy. Your XNO account: <span class="mono" style="font-size:12px">${acct.account}</span> <button onclick="obxCopy('${acct.account}','Account copied')">copy</button>`;
+      el("obFund").innerHTML=`Your swap account: <span class="mono" style="font-size:12px">${acct.account}</span> <span class="muted">(node Nano RPC offline)</span>`;
     }
   }catch(e){
     el("obFund").innerHTML=`Your swap account: <span class="mono" style="font-size:12px">${acct.account}</span> <span class="muted">(node Nano RPC offline)</span>`;
   }
 }
-// obShowFundQR renders the "fund your XNO account" prompt with a scannable QR so a
-// user with zero XNO can top up from any Nano wallet, then buy OBX.
+// obShowFundQR renders the "fund your XNO account" prompt with a scannable QR, and
+// starts a live watcher that auto-detects the incoming deposit (no manual refresh).
 function obShowFundQR(account, message){
   el("obFund").innerHTML=`<div style="margin-bottom:8px">${message}</div>
     <div class="row" style="gap:12px;align-items:flex-start;flex-wrap:wrap">
@@ -1203,10 +1206,62 @@ function obShowFundQR(account, message){
       <div style="flex:1;min-width:160px">
         <div class="mono" style="font-size:12px;word-break:break-all">${account}</div>
         <button class="ghost mini" style="margin-top:8px" onclick="obxCopy('${account}','XNO address copied')">copy address</button>
-        <button class="ghost mini" style="margin-top:8px" onclick="obRefreshBalances();obInitCard()">I've funded it ✓</button>
+        <div id="obFundWatch" class="muted" style="font-size:12px;margin-top:8px"></div>
       </div>
     </div>`;
   renderQR("obFundQR", account);
+  startFundWatch(account);
+}
+// ---- live funding detection. Prefers a real-time SSE PUSH from the node
+// (/swaps/nano/watch via the same-origin proxy — no IP leak to the Nano node, the
+// node polls it server-side); falls back to client polling where a stream can't be
+// held (e.g. a serverless proxy in front of a hosted node). Watches balance +
+// pending receivable and reacts the moment new XNO arrives. ----
+let _fundWatch=null, _fundBaseline=null, _fundES=null, _fundReady=false;
+function stopFundWatch(){
+  if(_fundWatch){ clearInterval(_fundWatch); _fundWatch=null; }
+  if(_fundES){ try{_fundES.close();}catch(_){} _fundES=null; }
+  _fundBaseline=null; _fundReady=false;
+}
+async function fundTotalRaw(account){
+  let bal=null, rcv=0n;
+  try{ const i=await get("nanoaccount","&account="+encodeURIComponent(account)); bal=BigInt(i.balance||"0"); }
+  catch(e){ return null; } // RPC offline → unknown
+  try{ const r=await get("nanoreceivable","&account="+encodeURIComponent(account)); if(r.found) rcv=BigInt(r.amount||"0"); }catch(e){}
+  return bal+rcv;
+}
+function onFundDetected(deltaRaw){
+  stopFundWatch();
+  el("obFund").innerHTML=`<div class="ok">✓ Received ${fmtUnits((deltaRaw||0n).toString(),30)} XNO — you're funded! Enter an amount and press <b>Buy OBX</b>.</div>`;
+  obRefreshBalances(); walletRefreshXno();
+}
+function startFundWatch(account){
+  stopFundWatch();
+  const st=el("obFundWatch"); if(st) st.textContent="⏳ Watching for your XNO deposit…";
+  try{
+    if(typeof EventSource!=="undefined"){
+      const es=new EventSource(API+"?path=nanowatch&account="+encodeURIComponent(account));
+      _fundES=es;
+      es.addEventListener("ready",()=>{ _fundReady=true; if(st) st.textContent="🔔 Connected — you'll be notified the instant XNO arrives."; });
+      es.addEventListener("deposit",(e)=>{ let d=0n; try{ d=BigInt(JSON.parse(e.data).delta||"0"); }catch(_){}; onFundDetected(d); });
+      es.onerror=()=>{ if(!_fundReady && _fundES===es){ try{es.close();}catch(_){} _fundES=null; startFundPoll(account); } };
+      // if the stream never becomes ready (proxy can't hold it), poll instead.
+      setTimeout(()=>{ if(_fundES===es && !_fundReady){ try{es.close();}catch(_){} _fundES=null; startFundPoll(account); } }, 5000);
+      return;
+    }
+  }catch(_){}
+  startFundPoll(account);
+}
+async function startFundPoll(account){
+  if(_fundWatch) return;
+  _fundBaseline=await fundTotalRaw(account);
+  const st=el("obFundWatch"); if(st && !_fundReady) st.textContent="⏳ Watching for your XNO deposit…";
+  _fundWatch=setInterval(async()=>{
+    const cur=await fundTotalRaw(account);
+    if(cur==null) return;
+    if(_fundBaseline==null){ _fundBaseline=cur; return; }
+    if(cur>_fundBaseline) onFundDetected(cur-_fundBaseline);
+  }, 4000);
 }
 // ---- in-wallet price chart (lightweight-charts, lazy-loaded on DEX-tab open) ----
 let _lwc=null,_lwcLoading=null,_dexChart=null,_dexSeries=null,_dexTimer=null;

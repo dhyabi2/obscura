@@ -292,6 +292,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/swaps/swapout", s.handleSwapOut)
 	mux.HandleFunc("/swaps/nano/account", s.handleNanoAccount)
 	mux.HandleFunc("/swaps/nano/receivable", s.handleNanoReceivable)
+	mux.HandleFunc("/swaps/nano/watch", s.handleNanoWatch) // SSE deposit push
 	mux.HandleFunc("/swaps/nano/block", s.handleNanoBlock)
 	mux.HandleFunc("/swaps/nano/publish", s.handleNanoPublish)
 	// Matching-engine market-data + order status: the executed-trade tape, OHLCV

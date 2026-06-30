@@ -336,6 +336,12 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 			}
 			target = root + "/blocks?from=" + from + "&count=" + cnt
 			method = http.MethodGet
+		case path == "nanowatch":
+			// SSE deposit-notification stream. Forwarded with per-chunk FLUSH and NO
+			// request timeout (it's long-lived), unlike the buffered JSON paths below.
+			acct := sanitizeParamLong(q.Get("account"))
+			streamSSE(w, r, root+"/swaps/nano/watch?account="+url.QueryEscape(acct), hosted)
+			return
 		case get[path] != "":
 			target = root + get[path]
 			method = http.MethodGet
@@ -412,6 +418,50 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 		}
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
+	}
+}
+
+// streamSSE proxies a long-lived Server-Sent Events stream from the node RPC to the
+// browser, flushing each chunk so deposit events arrive in real time (the buffered
+// io.Copy path would hold them). No timeout — the stream ends when the client
+// disconnects (r.Context cancel) or the upstream closes.
+func streamSSE(w http.ResponseWriter, r *http.Request, target string, hosted bool) {
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		writeJSONError(w, http.StatusServiceUnavailable, "streaming unsupported")
+		return
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, "node unreachable")
+		return
+	}
+	if hosted {
+		req.Header.Set("X-OBX-Proxied", "1")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, "node unreachable: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(resp.StatusCode)
+	fl.Flush()
+	buf := make([]byte, 1024)
+	for {
+		n, rerr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, werr := w.Write(buf[:n]); werr != nil {
+				return
+			}
+			fl.Flush()
+		}
+		if rerr != nil {
+			return
+		}
 	}
 }
 

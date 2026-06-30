@@ -122,8 +122,10 @@ var qrcodegen = (function () {
     this.drawFormatBits(0);
     this.drawVersion();
   };
+  // QR format-info ECC encoding (NOT the table index): L=1, M=0, Q=3, H=2.
+  var FORMAT_ECC = [1, 0, 3, 2];
   QrCode.prototype.drawFormatBits = function (mask) {
-    var data = (this.ecl << 3) | mask;
+    var data = (FORMAT_ECC[this.ecl] << 3) | mask;
     var rem = data;
     for (var i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
     var bits = ((data << 10) | rem) ^ 0x5412;
