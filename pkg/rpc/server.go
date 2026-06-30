@@ -166,6 +166,9 @@ type Server struct {
 	priceHist     []pricePoint
 	priceStarted  sync.Once
 	priceHistPath string // optional: JSON file to persist priceHist across restarts
+
+	// network-metrics time series for the explorer sparklines + swap volume (metrics.go)
+	metricsFields
 }
 
 // SetPriceHistPath makes the price-history ring durable: it is loaded on the first
@@ -316,6 +319,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/explorer/mempool", s.handleExplorerMempool)
 	mux.HandleFunc("/explorer/vaults", s.handleExplorerVaults)
 	mux.HandleFunc("/explorer/pricehistory", s.handleExplorerPriceHistory)
+	mux.HandleFunc("/explorer/metrics", s.handleExplorerMetrics) // sparkline series + swap volume
 	mux.HandleFunc("/explorer/swaps", s.handleExplorerSwaps)
 	// XNO proceeds account: the derived nano_ address + live balance/receivable.
 	// PUBLIC and read-only — never touches the secret (safe to public-proxy).
@@ -325,6 +329,7 @@ func (s *Server) Handler() http.Handler {
 	// harmless. The goroutine just skips ticks while no order book / no XNO offers
 	// exist, so it is safe to start regardless of wiring order.
 	s.priceStarted.Do(func() { go s.runPriceSampler() })
+	s.metricsStarted.Do(func() { go s.runMetricsSampler() })
 	// /peers is public but degrades to a count-only view for untrusted callers
 	// (the full peer IP list is a deanonymization leak on a privacy coin).
 	mux.HandleFunc("/peers", s.handlePeers)

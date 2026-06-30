@@ -252,6 +252,7 @@ func uiExplorerProxy(rpcBase string, hosted bool) http.HandlerFunc {
 		"offers":        "/offers",
 		"offersjson":    "/offers/json",
 		"pricehistory":  "/explorer/pricehistory",
+		"metrics":       "/explorer/metrics",
 		"swaps":         "/explorer/swaps",
 		"liquidity":     "/liquidity",
 		"swapsactive":   "/swaps/active",

@@ -208,7 +208,6 @@
     <a href="/wallet" style="color:var(--accent2);font-size:13px;font-weight:600">Wallet &amp; Swap →</a>
     <span class="live"><span class="dot" id="dot"></span><span id="livetxt">connecting…</span></span>
   </header>
-  <div class="sub">A real-time view of a privacy coin where amounts stay hidden. You watch the network <i>breathe</i>: a flowing block stream, a live mempool, and a forever-growing global anonymity set.</div>
 
   <div id="err"></div>
 
@@ -893,6 +892,7 @@ async function refreshSwapActive(){
 
 async function refreshSummary(){
   const s=await get("summary");
+  let mx=null; try{ mx=await get("metrics"); }catch(e){} // persisted sparkline series + swap volume
   failures=0;setLive(true);document.getElementById("err").innerHTML="";
   // anonymity-set history (for sparkline + growth)
   if(anonHist.length===0||anonHist[anonHist.length-1]!==s.anonymity_set){anonHist.push(s.anonymity_set);if(anonHist.length>60)anonHist.shift();}
@@ -907,15 +907,23 @@ async function refreshSummary(){
   }else{
     hr=Number(s.difficulty)/(s.target_block_time||120); // low-height fallback
   }
+  // sparkline series from the node's PERSISTED metrics history (survives restarts).
+  const mp=(mx&&mx.points)||[];
+  const spk=f=>mp.length>1?sparkline(mp.map(f)):"";
+  // hashrate ∝ difficulty at constant target block time, so the difficulty series is
+  // the hashrate trend (the precise current H/s is in the card value above).
+  const supplySpk=spk(p=>p.supply), diffSpk=spk(p=>p.difficulty), hrSpk=spk(p=>p.hashrate||p.difficulty), peerSpk=spk(p=>p.peers);
+  const swapVolCard = mx ? statCard("Swap volume",mx.volume_obx+" OBX","⇄ "+mx.volume_xno+" XNO") : "";
   const st=document.getElementById("stats");
   st.innerHTML=
     statCard("Block height",Number(s.height).toLocaleString(),"",sparkHeight()) +
     statCard("Anonymity set",Number(s.anonymity_set).toLocaleString(),"members") +
-    statCard("Supply",s.emitted_obx,s.ticker) +
-    statCard("Difficulty",Number(s.difficulty).toLocaleString()) +
-    statCard("Network hashrate",fmtHashrate(hr)) +
+    statCard("Supply",s.emitted_obx,s.ticker,supplySpk) +
+    statCard("Difficulty",Number(s.difficulty).toLocaleString(),"",diffSpk) +
+    statCard("Network hashrate",fmtHashrate(hr),"",hrSpk) +
     statCard("Mempool",s.mempool,"pending") +
-    (s.connected_peers!==undefined? statCard("Nodes seen",Number(s.connected_peers).toLocaleString(),(Number(s.known_nodes||0)).toLocaleString()+" known via PEX"):"") +
+    (s.connected_peers!==undefined? statCard("Nodes seen",Number(s.connected_peers).toLocaleString(),(Number(s.known_nodes||0)).toLocaleString()+" known via PEX",peerSpk):"") +
+    swapVolCard +
     (s.tvl_obx!==undefined? statCard("Value locked",s.tvl_obx,(s.vaults||0)+" vaults"):"") +
     (liqStat? statCard("Total liquidity",liqStat.offers.toLocaleString(),"offer"+(liqStat.offers===1?"":"s")+(liqStat.makers!==null?(" · "+liqStat.makers+" maker"+(liqStat.makers===1?"":"s")):"")):"") +
     priceCards(s.prices);

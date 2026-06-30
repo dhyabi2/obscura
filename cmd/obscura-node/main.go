@@ -157,6 +157,7 @@ func main() {
 	srv := rpc.NewServer(c, mp, node.BroadcastTx)
 	srv.SetOfferBook(node)                                          // expose the swap order book over RPC
 	srv.SetPriceHistPath(filepath.Join(*datadir, "pricehist.json")) // persist the chart history across restarts
+	srv.SetMetricsPath(filepath.Join(*datadir, "metrics.json"))     // persist explorer sparkline series + swap volume
 
 	// XNO↔OBX swap leg: only enabled when the operator selects a Nano RPC (preset name or
 	// URL). Nothing is hardcoded into the swap logic — a preset is an explicit operator
