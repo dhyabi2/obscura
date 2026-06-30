@@ -51,8 +51,8 @@ go build -o ./bin/obscura-testwallet ./cmd/obscura-testwallet
 ```json
 {
   "xno_address":    "nano_13kekgtubt9zywkyzys8fredu54tf333j1d9trfxjit86x9eyq1nafedtaw5",
-  "xno_secret_hex": "e553571a28939986a70c424f9698c5100e3ccc24a702dd7400483284fd5e230d",
-  "obx_seed_hex":   "94907d764cf85bd065fb57b100e47676c22c18bf27247585525edd2177e2bce3"
+  "xno_secret_hex": "<redacted-xno-secret>",
+  "obx_seed_hex":   "<redacted-obx-seed>"
 }
 ```
 
